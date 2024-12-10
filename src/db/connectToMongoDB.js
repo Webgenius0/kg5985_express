@@ -9,8 +9,7 @@ async function connectToMongoDB(req,res,next) {
              next(new AppError("MONGODB_URI is not defined in the environment variables.", 500));
         }
 
-        await mongoose.connect(`${uri}/reminder_app`);
-
+        await mongoose.connect(`${uri}/reminderApp`);
         console.log("Connected to MongoDB");
     } catch (error) {
         // If it's an AppError, log its message and exit
@@ -22,7 +21,7 @@ async function connectToMongoDB(req,res,next) {
         }
 
         // Pass the error to a global error handler or exit the process
-        process.exit(1); // Stops the app if connection fails
+        process.exit(1);
     }
 }
 
