@@ -30,21 +30,6 @@ const UserSchema = new mongoose.Schema(
     }
 );
 
-// Middleware to hash the password before saving
-UserSchema.pre('save', async function (next) {
-    if (!this.isModified('password')) return next();
-    try {
-        this.password = await bcrypt.hash(this.password, 12);
-        next();
-    } catch (error) {
-        next(error);
-    }
-});
-
-// Instance method to validate password
-UserSchema.methods.isPasswordCorrect = async function (candidatePassword) {
-    return await bcrypt.compare(candidatePassword, this.password);
-};
 
 // Hide sensitive data like password when returning user data
 UserSchema.methods.toJSON = function () {
@@ -53,6 +38,6 @@ UserSchema.methods.toJSON = function () {
     return user;
 };
 
-const User = mongoose.model("User", UserSchema);
+const User = mongoose.model("users", UserSchema);
 
 module.exports = User;

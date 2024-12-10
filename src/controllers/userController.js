@@ -2,13 +2,13 @@ const AppError = require("../utils/AppError");
 const User = require("../models/userModel");
 const jwt = require("jsonwebtoken");
 const catchAsync = require('../utils/catchAsync');
-const {hash} = require("bcrypt");
+const bcrypt = require("bcrypt");
 
 
 //user registration
 exports.registerUser = catchAsync(async (req, res, next) => {
     try {
-        const { firstName, lastName, email, password, role } = req.body;
+        let { firstName, lastName, email, password, role } = req.body;
 
         // Validate required fields
         if (!firstName || !lastName || !email || !password) {
@@ -21,6 +21,7 @@ exports.registerUser = catchAsync(async (req, res, next) => {
             return next(new AppError("This email is already registered. Please log in.", 400));
         }
 
+        password = await bcrypt.hash(password, 12);
         // Create a new user
         await User.create({
             firstName,
@@ -60,9 +61,13 @@ exports.loginUser = catchAsync(async (req, res, next) => {
             return next(new AppError("Invalid email or password", 401));
         }
 
-        const isPasswordCorrect = await user.isPasswordCorrect(password);
+        // Validate the current password
+        const isPasswordCorrect = await bcrypt.compare(password, user.password);
+
+        console.log(isPasswordCorrect);
+
         if (!isPasswordCorrect) {
-            return next(new AppError("Invalid email or password", 401));
+            return next(new AppError("Incorrect current password", 401));
         }
 
         // Create JWT token
@@ -104,28 +109,29 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
             return next(new AppError("Both current password and new password are required", 400));
         }
 
-        // Fetch the user from the database
         const user = await User.findOne({ email });
+
         if (!user) {
             return next(new AppError("User not found", 404));
         }
 
         // Validate the current password
-        const isPasswordCorrect = await user.isPasswordCorrect(currentPassword);
+        const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password);
         if (!isPasswordCorrect) {
             return next(new AppError("Incorrect current password", 401));
         }
 
-        // Validate the new password (you can add custom validation here like length, strength, etc.)
+        // Validate the new password (e.g., length, strength)
         if (newPassword.length < 8) {
             return next(new AppError("New password must be at least 8 characters long", 400));
         }
 
         // Update the user's password
-        user.password = await hash(newPassword, 12);
+        user.password = await bcrypt.hash(newPassword, 12);
         await user.save();
 
-        // Send success response
+
+        // Send success response along with the new token
         res.status(200).json({
             status: 'success',
             message: 'Password updated successfully',
