@@ -1,4 +1,4 @@
-const catchAsync = require('../utils/catchAsync'); // Async error handler utility
+const catchAsync = require('../utils/catchAsync');
 const schedule = require('node-schedule');
 const AppError = require("../utils/AppError");
 const Reminder = require("../models/reminderModel");
@@ -8,13 +8,14 @@ exports.createReminder = catchAsync(async (req, res, next) => {
 
     try {
         const userID = req.user._id;
+        console.log(userID,req.body);
         const { title, reminderDateTime, notes, images } = req.body;
 
         // Validate required fields
         if (!title || !reminderDateTime || !userID) {
             return next(new AppError("Title, reminder date, and user ID are required", 400));
         }
-
+       console.log(reminderDateTime)
         const date = new Date(reminderDateTime);
 
         console.log(date.toString());
@@ -150,7 +151,6 @@ exports.scheduleReminder = catchAsync(async (req, res, next) => {
 
             // Mark the reminder as completed and set execution time
             await markReminderAsCompleted(reminderID, next);
-
             //from here my firebase notification will set
         });
 
@@ -181,4 +181,18 @@ const markReminderAsCompleted = async (reminderID, next) => {
     }
 };
 
+//active reminders
+exports.activeReminders = catchAsync(async (req, res, next) => {
+    try{
+        let userID = req.user._id;
+        let activeReminders = await Reminder.find({userID:userID,isComplete:false});
+        if (!activeReminders) {
+            return next(new AppError("Reminder not found", 404));
+        }
+        res.status(200).json({status: "success", data: activeReminders});
+    }
+    catch (error) {
+        next(error);
+    }
+})
 
