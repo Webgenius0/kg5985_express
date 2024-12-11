@@ -1,7 +1,10 @@
 const express = require('express');
 const {registerUser, loginUser, logout, updatePassword} = require("../controllers/userController");
 const verifyToken = require("../middlewares/verifyToken");
-const {createReminder, updateReminder, deleteReminder, getSingleReminder, markReminderAsCompleted, scheduleReminder} = require("../controllers/reminderController");
+const {createReminder, updateReminder, deleteReminder, getSingleReminder, scheduleReminder,
+    getAllReminders, activeReminders
+} = require("../controllers/reminderController");
+const {createHelp} = require("../controllers/helpController");
 const router = express.Router();
 
 //user routes
@@ -16,11 +19,12 @@ router.post('/create-reminder',verifyToken, createReminder );
 router.put('/update-reminder',verifyToken,updateReminder);
 router.delete('/remove-reminder',verifyToken, deleteReminder);
 router.get('/reminder/:id',verifyToken, getSingleReminder);
-router.get('/reminders',verifyToken, getSingleReminder);
-router.get('/schedule-reminder/:id',verifyToken,scheduleReminder);
+router.get('/reminders',verifyToken, getAllReminders);
+router.post('/schedule-reminder/:id',verifyToken,scheduleReminder);
+router.get('/active-reminders',verifyToken, activeReminders);
 
-
-
+//help & support
+router.post('/create-help',createHelp);
 
 
 module.exports = router;
