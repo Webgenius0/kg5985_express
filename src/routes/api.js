@@ -5,6 +5,7 @@ const {createReminder, updateReminder, deleteReminder, getSingleReminder, schedu
     getAllReminders, activeReminders
 } = require("../controllers/reminderController");
 const {createHelp} = require("../controllers/helpController");
+const {resizeImages, upload} = require("../utils/multer");
 const router = express.Router();
 
 //user routes
@@ -15,8 +16,8 @@ router.post('/update-password', verifyToken, updatePassword);
 
 
 //reminders
-router.post('/create-reminder',verifyToken, createReminder );
-router.put('/update-reminder',verifyToken,updateReminder);
+router.post('/create-reminder',verifyToken, upload.array('images'),resizeImages, createReminder );
+router.put('/update-reminder/:id',verifyToken,updateReminder);
 router.delete('/remove-reminder',verifyToken, deleteReminder);
 router.get('/reminder/:id',verifyToken, getSingleReminder);
 router.get('/reminders',verifyToken, getAllReminders);

@@ -8,21 +8,22 @@ const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const { rateLimit } = require('express-rate-limit');
 require('dotenv').config();
+const path = require('path');
 
 const limiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 1000,
-    standardHeaders: "draft-7",
-    legacyHeaders: false,
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 1000, // limit to 1000 requests per hour
+    standardHeaders: "draft-7", // enable standard headers
+    legacyHeaders: false, // disable legacy headers
 });
 
 // Importing router
 const router = require("./src/routes/api");
 
-//importing utility
+// Importing utility
 const AppError = require("./src/utils/AppError");
 
-// importing database
+// Importing database
 const connectToMongoDB = require("./src/db/connectToMongoDB");
 
 // Implementing security middlewares
@@ -39,6 +40,14 @@ app.use(limiter);
 
 // Connecting to router
 app.use("/api/v1", router);
+
+// Static directory for images
+// This will serve the images stored in the 'public/uploads' folder
+// Serve static files from 'src/public/uploads'
+app.use('/images', express.static(path.join(__dirname, 'src', 'public', 'uploads')));
+
+// Logging the uploads directory to ensure the path is correct
+console.log('Uploads directory:', path.join(__dirname, 'public/uploads'));
 
 // Handling undefined routes
 app.all("*", (req, res, next) => {

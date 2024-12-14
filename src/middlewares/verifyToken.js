@@ -5,12 +5,19 @@ const User = require("../models/userModel");
 
 // Verify Middleware
 const verifyToken = catchAsync(async (req, res, next) => {
-    const token = req.headers.token;
+    const authHeader = req.headers.authorization;
 
-    // If no token, send unauthorized error
-    if (!token) {
-        return next(new AppError('You are not logged in! Please log in to get access.', 401));
+    console.log(authHeader);
+
+    // Check if the header exists and starts with "Bearer"
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ message: "Unauthorized. No token provided." });
     }
+
+    // Extract the token from the header
+
+    const token = authHeader.split(" ")[1];
 
     // Verify the token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);

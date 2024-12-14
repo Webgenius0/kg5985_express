@@ -2,44 +2,69 @@ const catchAsync = require('../utils/catchAsync');
 const schedule = require('node-schedule');
 const AppError = require("../utils/AppError");
 const Reminder = require("../models/reminderModel");
+const moment = require('moment');
 
-// Create Reminder
+
 exports.createReminder = catchAsync(async (req, res, next) => {
-
     try {
         const userID = req.user._id;
-        console.log(userID,req.body);
-        const { title, reminderDateTime, notes, images } = req.body;
+
+        const { title, reminderDateTime, notes } = req.body;
+        const files = req.files;
+        console.log(files);
 
         // Validate required fields
         if (!title || !reminderDateTime || !userID) {
             return next(new AppError("Title, reminder date, and user ID are required", 400));
         }
-       console.log(reminderDateTime)
-        const date = new Date(reminderDateTime);
+
+        // Parse reminderDateTime using moment (auto detects many formats)
+        const date = moment(reminderDateTime).toDate();
+
+        // Check if the parsed date is valid
+        if (isNaN(date)) {
+            return next(new AppError("Invalid date format for reminderDateTime", 400));
+        }
 
         console.log(date.toString());
         console.log(date.toLocaleString());
+
+        // Convert image URLs
+        const imageUrls = files.map(
+            (file) => `${req.protocol}://${req.get('host')}/images/display-${file.filename}`
+        );
 
         // Create the reminder
         const reminder = await Reminder.create({
             title,
             reminderDateTime,
             notes,
-            images,
+            images: imageUrls,
             userID,
         });
 
-        // Send success response
+        // Schedule the job at the parsed date and time
+        schedule.scheduleJob(date, async function () {
+            console.log(`Reminder: ${title} time ${date}`);
+            // Mark the reminder as completed and set execution time
+            await markReminderAsCompleted(reminder?._id, next);
+            // Trigger your Firebase notification here
+        });
+
         res.status(201).json({
             status: "success",
-            message: "Reminder created successfully",
+            message: "Reminder scheduled successfully",
             data: reminder
         });
+
     } catch (error) {
         next(error);
     }
 });
+
+
+
+
 
 // Update Reminder
 exports.updateReminder = catchAsync(async (req, res, next) => {
