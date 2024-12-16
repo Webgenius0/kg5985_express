@@ -5,11 +5,13 @@ const Reminder = require("../models/reminderModel");
 const moment = require('moment');
 
 
+
+//create reminders
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
 
-        const { title, reminderDateTime, notes } = req.body;
+        const {title, reminderDateTime, notes} = req.body;
         const files = req.files;
         console.log(files);
 
@@ -62,15 +64,33 @@ exports.createReminder = catchAsync(async (req, res, next) => {
     }
 });
 
-
-
-
-
-// Update Reminder
-exports.updateReminder = catchAsync(async (req, res, next) => {
-    try{
+exports.deleteReminder = catchAsync(async (req, res, next) => {
+    try {
+        const userID = req.user._id;
         const reminderID = req.params.id;
-        const updatedData = req.body;
+
+        const reminder = await Reminder.findOne({ _id: reminderID, userID: userID });
+
+        if (!reminder) {
+            return next(new AppError("Reminder not found or you do not have access", 404));
+        }
+
+        await Reminder.deleteOne({ _id: reminderID });
+
+        res.status(200).json({
+            status: "success",
+            message: "Reminder deleted successfully",
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+
+// Get a single Reminder
+exports.getSingleReminder = catchAsync(async (req, res, next) => {
+    try {
+        const reminderID = req.params.id;
 
         // Check if reminder exists
         const reminder = await Reminder.findById(reminderID);
@@ -78,113 +98,27 @@ exports.updateReminder = catchAsync(async (req, res, next) => {
             return next(new AppError("Reminder not found", 404));
         }
 
-        // Check if reminder date is in the future
-        if (updatedData.reminderDateTime && new Date(updatedData.reminderDateTime) <= Date.now()) {
-            return next(new AppError("Reminder date must be in the future", 400));
-        }
-
-        // Update the reminder
-        const updatedReminder = await Reminder.findByIdAndUpdate(reminderID, updatedData, { new: true });
-
         res.status(200).json({
             status: "success",
-            message: "Reminder updated successfully",
-            data: updatedReminder
+            data: reminder
         });
-    }
-    catch (error) {
+    } catch (error) {
         next(error);
     }
 });
 
-// Delete Reminder
-exports.deleteReminder = catchAsync(async (req, res, next) => {
-   try{
-       const reminderID = req.params.id;
-       // Check if reminder exists
-       const reminder = await Reminder.findByIdAndDelete(reminderID);
-       if (!reminder) {
-           return next(new AppError("Reminder not found", 404));
-       }
-
-       res.status(200).json({
-           status: "success",
-           message: "Reminder deleted successfully",
-       });
-   }
-   catch(error) {
-       next(error);
-   }
-});
-
-// Get a single Reminder
-exports.getSingleReminder = catchAsync(async (req, res, next) => {
-  try{
-      const reminderID = req.params.id;
-
-      // Check if reminder exists
-      const reminder = await Reminder.findById(reminderID);
-      if (!reminder) {
-          return next(new AppError("Reminder not found", 404));
-      }
-
-      res.status(200).json({
-          status: "success",
-          data: reminder
-      });
-  }
-  catch (error) {
-      next(error);
-  }
-});
-
 // Get all Reminders
 exports.getAllReminders = catchAsync(async (req, res, next) => {
-    try{
-        const reminders = await Reminder.find();
+    try {
+        const userID = req.user._id;
+        const reminders = await Reminder.find({userID:userID});
 
         res.status(200).json({
             status: "success",
             data: reminders
         });
-    }
-    catch (error) {
-        next(error);
-    }
-});
-
-
-// Schedule Reminder
-exports.scheduleReminder = catchAsync(async (req, res, next) => {
-    const reminderID = req.params.id;
-
-    // Find the reminder
-    const reminder = await Reminder.findById({_id: reminderID});
-    if (!reminder) {
-        return next(new AppError("Reminder not found", 404));
-    }
-
-    // Check if reminder is already complete
-    if (reminder.isComplete) {
-        return next(new AppError("Reminder has already been completed", 400));
-    }
-
-    // Schedule the reminder
-    try {
-        schedule.scheduleJob(reminder.reminderDateTime, async function () {
-            console.log(`Reminder: ${reminder.title}`);
-
-            // Mark the reminder as completed and set execution time
-            await markReminderAsCompleted(reminderID, next);
-            //from here my firebase notification will set
-        });
-
-        res.status(200).json({
-            status: "success",
-            message: "Reminder scheduled successfully",
-        });
     } catch (error) {
-        next(new AppError("Failed to schedule reminder", 500));
+        next(error);
     }
 });
 
@@ -208,16 +142,107 @@ const markReminderAsCompleted = async (reminderID, next) => {
 
 //active reminders
 exports.activeReminders = catchAsync(async (req, res, next) => {
-    try{
+    try {
         let userID = req.user._id;
-        let activeReminders = await Reminder.find({userID:userID,isComplete:false});
+        let activeReminders = await Reminder.find({userID: userID, isComplete: false});
         if (!activeReminders) {
             return next(new AppError("Reminder not found", 404));
         }
         res.status(200).json({status: "success", data: activeReminders});
-    }
-    catch (error) {
+    } catch (error) {
         next(error);
     }
 })
+
+//completed reminders
+exports.completedReminder = catchAsync(async (req, res, next) => {
+    try {
+        let userID = req.user._id;
+        let activeReminders = await Reminder.find({userID: userID, isComplete: true});
+        if (!activeReminders) {
+            return next(new AppError("Reminder not found", 404));
+        }
+        res.status(200).json({status: "success", data: activeReminders});
+    } catch (error) {
+        next(error);
+    }
+})
+
+//snoozed reminder
+exports.snoozeReminder = catchAsync(async (req, res, next) => {
+    try {
+        const reminderID = req.params.id;
+        const userID = req.user._id;
+        const reminder = await Reminder.findOne({ _id: reminderID, userID: userID });
+
+        if (!reminder) {
+            return next(new AppError("Reminder not found or you do not have access", 404));
+        }
+
+        // Update the isSnoozeActive field
+        reminder.isSnoozeActive = true;
+        await reminder.save();
+
+        // Send success response
+        res.status(200).json({
+            status: 'success',
+            message: 'Reminder snoozed successfully',
+            data: {
+                reminder,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+//snoozed list
+exports.snoozedList = catchAsync(async (req, res, next) => {
+    try {
+        const userID = req.user._id;
+        const data = await Reminder.find({userID:userID,isSnoozeActive: true });
+        if(!data) {
+            return next(new AppError("Snoozed Reminder not found", 404));
+        }
+        res.status(200).json({
+            status: 'success',
+            results: data.length,
+            data:data,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+//update snoozed time
+exports.updateSnoozedTime = catchAsync(async (req, res, next) => {
+    try {
+        const userID = req.user._id;
+        const reminderID = req.params.id;
+        const { snoozedTime } = req.body;
+
+        if (!snoozedTime) {
+            return next(new AppError("Snoozed time is required", 400));
+        }
+
+        const reminder = await Reminder.findOne({ _id: reminderID, userID: userID });
+
+        if (!reminder) {
+            return next(new AppError("Reminder not found or you do not have access", 404));
+        }
+
+        reminder.snoozedTime = snoozedTime;
+        await reminder.save();
+
+        res.status(200).json({
+            status: 'success',
+            message: 'Snoozed time updated successfully',
+            data: {
+                reminder,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+});
 

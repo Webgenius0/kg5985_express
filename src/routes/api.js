@@ -1,8 +1,8 @@
 const express = require('express');
 const {registerUser, loginUser, logout, updatePassword} = require("../controllers/userController");
 const verifyToken = require("../middlewares/verifyToken");
-const {createReminder, updateReminder, deleteReminder, getSingleReminder, scheduleReminder,
-    getAllReminders, activeReminders
+const {createReminder, deleteReminder, getSingleReminder,
+    getAllReminders, activeReminders, completedReminder, snoozeReminder, updateSnoozedTime, snoozedList
 } = require("../controllers/reminderController");
 const {createHelp} = require("../controllers/helpController");
 const {resizeImages, upload} = require("../utils/multer");
@@ -17,12 +17,16 @@ router.post('/update-password', verifyToken, updatePassword);
 
 //reminders
 router.post('/create-reminder',verifyToken, upload.array('images'),resizeImages, createReminder );
-router.put('/update-reminder/:id',verifyToken,updateReminder);
-router.delete('/remove-reminder',verifyToken, deleteReminder);
+router.delete('/remove-reminder/:id',verifyToken, deleteReminder);
 router.get('/reminder/:id',verifyToken, getSingleReminder);
 router.get('/reminders',verifyToken, getAllReminders);
-router.post('/schedule-reminder/:id',verifyToken,scheduleReminder);
 router.get('/active-reminders',verifyToken, activeReminders);
+router.get('/complete-reminders',verifyToken, completedReminder);
+
+//snoozed reminder
+router.put('/create-snooze/:id',verifyToken, snoozeReminder);
+router.get('/snooze-list',verifyToken, snoozedList);
+router.put('/set-snooze-time/:id',verifyToken,updateSnoozedTime)
 
 //help & support
 router.post('/create-help',createHelp);

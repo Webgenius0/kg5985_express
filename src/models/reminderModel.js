@@ -29,7 +29,6 @@ const ReminderSchema = new mongoose.Schema(
             type: [String],
             validate: {
                 validator: function (v) {
-                    // Ensure all entries in the array are valid image URLs
                     return v.every((url) =>
                         /^https?:\/\/.*\.(jpeg|jpg|png|gif)$/.test(url)
                     );
@@ -38,22 +37,24 @@ const ReminderSchema = new mongoose.Schema(
             },
         },
         userID: {
-            type: mongoose.Schema.Types.ObjectId, // Reference to a user
+            type: mongoose.Schema.Types.ObjectId,
             required: [true, "User ID is required"],
-            ref: "User", // Assuming a User model exists
+            ref: "User",
         },
         isComplete: {
             type: Boolean,
-            default: false, // Default to incomplete
+            default: false,
         },
         executionTime: {
-            type: Date, // ISO format for execution time
-            default: null, // Optional
+            type: Date,
+            default: null,
         },
+        isSnoozeActive:{type:Boolean,default:false},
+        snoozedTime:{type:String,default:null},
     },
     {
-        timestamps: true, // Automatically add createdAt and updatedAt fields
-        versionKey: false, // Remove __v field from the document
+        timestamps: true,
+        versionKey: false,
     }
 );
 
