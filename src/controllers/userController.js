@@ -72,7 +72,7 @@ exports.loginUser = catchAsync(async (req, res, next) => {
 
         // Create JWT token
         const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
-            expiresIn: process.env.JWT_EXPIRES_IN || '1h',
+            expiresIn: process.env.JWT_EXPIRES_IN,
         });
 
         // Send token to client
@@ -138,5 +138,26 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
         });
     } catch (error) {
         next(error);
+    }
+});
+
+
+exports.updateProfile = catchAsync(async (req, res, next) => {
+    try{
+       const userID = req.user._id;
+       const user = await User.findById({_id:userID});
+       if(!userID || !user) {
+           return next(new AppError("User not found", 401));
+       }
+      const {firstName,lastName,avatar} = req.body;
+      let updateFields = {};
+      if(firstName !== undefined) updateFields.firstName = firstName;
+      if(lastName !== undefined) updateFields.lastName = lastName;
+      if(avatar !== undefined) updateFields.avatar = avatar;
+      const updateProfile = await User.findByIdAndUpdate(userID,updateFields,{new:true});
+      res.status(200).json({data:updateProfile,message:"Profile updated"});
+    }
+    catch (error) {
+     next(error);
     }
 });
