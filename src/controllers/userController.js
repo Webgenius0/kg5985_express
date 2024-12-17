@@ -8,7 +8,7 @@ const bcrypt = require("bcrypt");
 //user registration
 exports.registerUser = catchAsync(async (req, res, next) => {
     try {
-        let { firstName, lastName, email, password, role } = req.body;
+        let { firstName, lastName, email, password, role,avatar } = req.body;
 
         // Validate required fields
         if (!firstName || !lastName || !email || !password) {
@@ -29,6 +29,7 @@ exports.registerUser = catchAsync(async (req, res, next) => {
             email,
             password,
             role,
+            avatar
         });
 
         // Send success response without sensitive data
