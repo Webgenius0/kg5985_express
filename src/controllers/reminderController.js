@@ -8,7 +8,8 @@ const admin = require('firebase-admin');
 const FCM = require("../models/fcmTokenModel");
 
 // Firebase Admin Initialization
-const serviceAccount = require('../utils/serviceAccount.json');
+const serviceAccount = require('../../serviceAccount.json');
+
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
@@ -16,40 +17,10 @@ admin.initializeApp({
 // Firebase Messaging Instance
 const messaging = admin.messaging();
 
-// // Function to send push notification
-// const sendPushNotification = async (reminder) => {
-//     const { userID, title, notes, images } = reminder;
-//
-//     const fcmToken = await FCM.find({userID:userID});
-//     // Assuming user has an `fcmToken` stored in the database
-//     const user = await User.findById(userID);
-//     if (!user || fcmToken) {
-//         console.log(`No FCM token found for user: ${userID}`);
-//         return;
-//     }
-//
-//     const message = {
-//         token: fcmToken,
-//         notification: {
-//             title: `Reminder: ${title}`,
-//             body: notes || "You have a scheduled reminder!",
-//         },
-//         // Optional: Include image in the notification
-//         ...(images.length > 0 && { image: images[0] }),
-//     };
-//
-//     try {
-//         const response = await messaging.send(message);
-//         console.log('Notification sent successfully:', response);
-//     } catch (error) {
-//         console.error('Error sending notification:', error);
-//     }
-// };
-
 
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
-        const {title, reminderDateTime, notes} = req.body;
+        const { title, reminderDateTime, notes } = req.body;
         const userID = req.user._id;
 
         // Validate required fields
@@ -57,8 +28,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             return next(new AppError("Title, reminder date, and user ID are required", 400));
         }
 
-        // Parse the reminderDateTime into a valid Date object using Moment.js (in BST)
-        // Adding 6 hours to convert from BST to UTC
+        // Parse the reminderDateTime into a valid Date object (in BST)
         const date = moment(reminderDateTime, "DD MMM YYYY, h:mm A").add(6, 'hours').toDate();
         console.log('Parsed Date in BST:', date);
 
@@ -72,28 +42,14 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             title, reminderDateTime: date, notes, userID,
         });
 
-        // Generate cron time based on the parsed date (in UTC for cron job)
-        const cronTime = moment(date).utc().format('m H D M *');
-        console.log('Generated Cron Time for UTC:', cronTime);
-
-        // Scheduling the reminder with detailed logging
-        console.log('Scheduling reminder for cron job...');
-        cron.schedule(cronTime, async () => {
-            console.log(`Cron job triggered at: ${new Date().toISOString()}`);
-            try {
-                // Send push notification (when you're ready to enable this)
-                // await sendPushNotification(reminder);
-                // Mark reminder as completed
-                await markReminderAsCompleted(reminder._id);
-                console.log('Reminder marked as completed');
-            } catch (error) {
-                console.error('Error executing reminder:', error);
-            }
-        });
+        // Schedule the reminder
+        await scheduleReminder(reminder, date);
 
         // Send response back
         res.status(201).json({
-            status: "success", message: "Reminder scheduled successfully", data: reminder,
+            status: "success",
+            message: "Reminder scheduled successfully",
+            data: reminder,
         });
     } catch (error) {
         next(error);
@@ -101,51 +57,75 @@ exports.createReminder = catchAsync(async (req, res, next) => {
 });
 
 
+
 //update reminder
 
 exports.updateReminderTime = catchAsync(async (req, res, next) => {
-    const { reminderDateTime,snoozedTime } = req.body;
-    const reminderID = req.params.id;
+    try {
+        const { reminderDateTime, snoozedTime } = req.body;
+        const reminderID = req.params.id;
 
-    // Validate required fields
-    if (!reminderDateTime) {
-        return next(new AppError('Reminder date and time are required', 400));
+        // Validate required fields
+        if (!reminderDateTime) {
+            return next(new AppError('Reminder date and time are required', 400));
+        }
+
+        // Parse the reminderDateTime into a valid Date object (in BST)
+        const date = moment(reminderDateTime, "DD MMM YYYY, h:mm A").add(6, 'hours').toDate();
+        console.log('Parsed Date in BST:', date);
+
+        // Validate parsed date
+        if (isNaN(date)) {
+            return next(new AppError('Invalid date format for reminderDateTime', 400));
+        }
+
+        // Find the reminder to update by its ID
+        const reminder = await Reminder.findById(reminderID);
+        if (!reminder) {
+            return next(new AppError('Reminder not found', 404));
+        }
+
+        // Update the reminder date in the database
+        reminder.reminderDateTime = date;
+        reminder.snoozedTime = snoozedTime;
+        await reminder.save();
+
+        // Schedule the updated reminder
+        await scheduleReminder(reminder, date, true);
+
+        // Send response back
+        res.status(200).json({
+            status: 'success',
+            message: 'Reminder time updated and reminder rescheduled successfully',
+            data: reminder,
+        });
+    } catch (error) {
+        next(error);
     }
+});
 
-    // Parse the reminderDateTime into a valid Date object (in BST)
-    const date = moment(reminderDateTime, "DD MMM YYYY, h:mm A").add(6, 'hours').toDate();
-    console.log('Parsed Date in BST:', date);
 
-    // Validate parsed date
-    if (isNaN(date)) {
-        return next(new AppError('Invalid date format for reminderDateTime', 400));
-    }
 
-    // Find the reminder to update by its ID
-    const reminder = await Reminder.findById(reminderID);
-    if (!reminder) {
-        return next(new AppError('Reminder not found', 404));
-    }
 
-    // Update the reminder date in the database
-    reminder.reminderDateTime = date;
-    reminder.snoozedTime = snoozedTime;
-    await reminder.save();
-
-    // Generate new cron time based on the updated date (in UTC for cron job)
+//schedule
+const scheduleReminder = async (reminder, date, isUpdate = false) => {
+    // Generate cron time based on the parsed date (in UTC for cron job)
     const cronTime = moment(date).utc().format('m H D M *');
-    console.log('Generated New Cron Time for UTC:', cronTime);
+    console.log(`${isUpdate ? 'Generated New' : 'Generated'} Cron Time for UTC:`, cronTime);
 
-    // Cancel the existing cron job before scheduling the new one (if any)
-    cron.getTasks().forEach(task => task.stop());
+    // Cancel existing cron jobs if it's an update
+    if (isUpdate) {
+        cron.getTasks().forEach(task => task.stop());
+        console.log('Canceled existing cron jobs for update.');
+    }
 
     // Schedule the reminder with the new time
-    console.log('Scheduling updated reminder for cron job...');
+    console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
     cron.schedule(cronTime, async () => {
         console.log(`Cron job triggered at: ${new Date().toISOString()}`);
         try {
             // Send push notification (when you're ready to enable this)
-            // await sendPushNotification(reminder);
+            await sendPushNotification(reminder);
             // Mark reminder as completed
             await markReminderAsCompleted(reminder._id);
             console.log('Reminder marked as completed');
@@ -153,14 +133,39 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
             console.error('Error executing reminder:', error);
         }
     });
+};
 
-    // Send response back
-    res.status(200).json({
-        status: 'success',
-        message: 'Reminder time updated and reminder rescheduled successfully',
-        data: reminder,
-    });
-});
+
+// Function to send push notification
+const sendPushNotification = async (reminder) => {
+    const { userID, title, notes, images } = reminder;
+
+    const fcmToken = await FCM.find({userID:userID});
+    // Assuming user has an `fcmToken` stored in the database
+    const user = await User.findById(userID);
+    if (!user || fcmToken) {
+        console.log(`No FCM token found for user: ${userID}`);
+        return;
+    }
+
+    const message = {
+        token: fcmToken,
+        notification: {
+            title: `Reminder: ${title}`,
+            body: notes || "You have a scheduled reminder!",
+        },
+        // Optional: Include image in the notification
+        ...(images.length > 0 && { image: images[0] }),
+    };
+
+    try {
+        const response = await messaging.send(message);
+        console.log('Notification sent successfully:', response);
+    } catch (error) {
+        console.error('Error sending notification:', error);
+    }
+};
+
 
 
 

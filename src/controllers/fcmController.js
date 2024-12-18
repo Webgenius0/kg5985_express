@@ -1,6 +1,6 @@
 const FCM = require('../models/fcmTokenModel');
 const catchAsync = require('../utils/catchAsync');
-const AppError = require('../utils/appError');
+const AppError = require('../utils/AppError');
 
 exports.updateOrCreateFcmToken = catchAsync(async (req, res, next) => {
     const { token } = req.body;
@@ -10,7 +10,7 @@ exports.updateOrCreateFcmToken = catchAsync(async (req, res, next) => {
         return next(new AppError('FCM token is required', 400));
     }
 
-    const existingToken = await FCM.findOne({ userID });
+    const existingToken = await FCM.find({ userID:userID });
 
     if (existingToken) {
         existingToken.fcmToken = token;
