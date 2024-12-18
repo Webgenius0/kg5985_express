@@ -38,11 +38,15 @@ app.use(helmet());
 app.use(mongoSanitize());
 app.use(limiter);
 
+//welcome to route
+app.get("/",(req,res)=>{
+    res.status(200).json({message:"Welcome to KG5985"});
+})
+
 // Connecting to router
 app.use("/api/v1", router);
 
-// Static directory for images
-// This will serve the images stored in the 'public/uploads' folder
+
 // Serve static files from 'src/public/uploads'
 app.use('/images', express.static(path.join(__dirname, 'src', 'public', 'uploads')));
 

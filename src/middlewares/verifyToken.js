@@ -7,8 +7,6 @@ const User = require("../models/userModel");
 const verifyToken = catchAsync(async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
-    console.log(authHeader);
-
     // Check if the header exists and starts with "Bearer"
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
