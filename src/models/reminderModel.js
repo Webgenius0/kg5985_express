@@ -16,7 +16,7 @@ const ReminderSchema = new mongoose.Schema(
             maxlength: [100, "Title should not exceed 100 characters"],
         },
         reminderDateTime: {
-            type: String,
+            type: Date,
             required: [true, "Reminder date and time is required"],
 
         },
