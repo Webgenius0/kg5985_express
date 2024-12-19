@@ -6,11 +6,14 @@ exports.updateOrCreateFcmToken = catchAsync(async (req, res, next) => {
     const { token } = req.body;
     const userID = req.user._id;
 
+    console.log(userID);
+
     if (!token) {
         return next(new AppError('FCM token is required', 400));
     }
 
-    const existingToken = await FCM.find({ userID:userID });
+    const existingToken = await FCM.findById(userID);
+
 
     if (existingToken) {
         existingToken.fcmToken = token;
