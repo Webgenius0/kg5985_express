@@ -82,7 +82,7 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
         // Find the reminder to update by its ID
         const reminder = await Reminder.findById(reminderID);
         if (!reminder) {
-            return next(new AppError('Reminder not found', 404));
+            return next(new AppError('Reminder not found', 200));
         }
 
         // Update the reminder date in the database
@@ -212,16 +212,21 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
         // Check if reminder exists
         const reminder = await Reminder.findById(reminderID);
         if (!reminder) {
-            return next(new AppError("Reminder not found", 404));
+            return next(new AppError("Reminder not found", 200));
         }
 
+        // Adjust the reminderDateTime field
+        const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+
+        // Send the adjusted reminder
         res.status(200).json({
-            status: "success", data: reminder
+            status: "success", data: { ...reminder.toObject(), reminderDateTime: adjustedDate }
         });
     } catch (error) {
         next(error);
     }
 });
+
 
 // Get all Reminders
 exports.getAllReminders = catchAsync(async (req, res, next) => {
@@ -229,8 +234,17 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
         const userID = req.user._id;
         const reminders = await Reminder.find({userID: userID});
 
+        const adjustedReminders = reminders.map(reminder => {
+            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+            return {
+                ...reminder.toObject(),
+                reminderDateTime: adjustedDate
+            };
+        });
+
         res.status(200).json({
-            status: "success", data: reminders
+            status: "success",
+            data: adjustedReminders
         });
     } catch (error) {
         next(error);
@@ -238,50 +252,76 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
 });
 
 
+
 //active reminders
 exports.activeReminders = catchAsync(async (req, res, next) => {
     try {
         let userID = req.user._id;
-        let activeReminders = await Reminder.find({userID: userID, isComplete: false});
-        if (!activeReminders) {
-            return next(new AppError("Reminder not found", 404));
+        let activeReminders = await Reminder.find({ userID: userID, isComplete: false });
+
+        if (!activeReminders || activeReminders.length === 0) {
+            return next(new AppError("Reminder not found", 200));
         }
-        res.status(200).json({status: "success", data: activeReminders});
+
+        // Adjust the reminderDateTime for each reminder
+        const adjustedReminders = activeReminders.map(reminder => {
+            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+            return {
+                ...reminder.toObject(),
+                reminderDateTime: adjustedDate
+            };
+        });
+
+        res.status(200).json({ status: "success", data: adjustedReminders });
     } catch (error) {
         next(error);
     }
-})
+});
+
 
 //completed reminders
 exports.completedReminder = catchAsync(async (req, res, next) => {
     try {
         let userID = req.user._id;
-        let activeReminders = await Reminder.find({userID: userID, isComplete: true});
-        if (!activeReminders) {
-            return next(new AppError("Reminder not found", 404));
+        let completedReminders = await Reminder.find({ userID: userID, isComplete: true });
+
+        if (!completedReminders || completedReminders.length === 0) {
+            return next(new AppError("Reminder not found", 200));
         }
-        res.status(200).json({status: "success", data: activeReminders});
+
+        // Adjust the reminderDateTime for each reminder
+        const adjustedReminders = completedReminders.map(reminder => {
+            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+            return {
+                ...reminder.toObject(),
+                reminderDateTime: adjustedDate
+            };
+        });
+
+        res.status(200).json({ status: "success", data: adjustedReminders });
     } catch (error) {
         next(error);
     }
-})
+});
+
 
 //snoozed reminder
 exports.snoozeReminder = catchAsync(async (req, res, next) => {
     try {
         const reminderID = req.params.id;
         const userID = req.user._id;
-        const reminder = await Reminder.findOne({_id: reminderID, userID: userID});
+        const reminder = await Reminder.findOne({ _id: reminderID, userID: userID });
 
         if (!reminder) {
-            return next(new AppError("Reminder not found or you do not have access", 404));
+            return next(new AppError("Reminder not found or you do not have access", 200));
         }
 
-        // Update the isSnoozeActive field
+        // Adjust the reminderDateTime for the reminder being snoozed
+        // Update the reminder date and snooze status
+        reminder.reminderDateTime = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
         reminder.isSnoozeActive = true;
         await reminder.save();
 
-        // Send success response
         res.status(200).json({
             status: 'success', message: 'Reminder snoozed successfully', data: {
                 reminder,
@@ -292,21 +332,34 @@ exports.snoozeReminder = catchAsync(async (req, res, next) => {
     }
 });
 
+
 //snoozed list
 exports.snoozedList = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
-        const data = await Reminder.find({userID: userID, isSnoozeActive: true});
-        if (!data) {
-            return next(new AppError("Snoozed Reminder not found", 404));
+        const data = await Reminder.find({ userID: userID, isSnoozeActive: true });
+
+        if (!data || data.length === 0) {
+            return next(new AppError("Snoozed Reminder not found", 200));
         }
+
+        // Adjust the reminderDateTime for each snoozed reminder
+        const adjustedReminders = data.map(reminder => {
+            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+            return {
+                ...reminder.toObject(),
+                reminderDateTime: adjustedDate
+            };
+        });
+
         res.status(200).json({
-            status: 'success', results: data.length, data: data,
+            status: 'success', results: adjustedReminders.length, data: adjustedReminders,
         });
     } catch (error) {
         next(error);
     }
 });
+
 
 // //update snoozed time
 // exports.updateSnoozedTime = catchAsync(async (req, res, next) => {
