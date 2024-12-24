@@ -6,18 +6,19 @@ exports.updateOrCreateFcmToken = catchAsync(async (req, res, next) => {
     const { token } = req.body;
     const userID = req.user._id;
 
-    console.log(userID);
-
     if (!token) {
         return next(new AppError('FCM token is required', 400));
     }
 
-    const existingToken = await FCM.findById(userID);
+    const result = await FCM.updateOne(
+        { userID: userID }, // Query to find the document
+        {
+            $set: { fcmToken: token }, // Set the new token
+            $currentDate: { updatedAt: true } // Automatically update the `updatedAt` field
+        }
+    );
 
-
-    if (existingToken) {
-        existingToken.fcmToken = token;
-        await existingToken.save();
+    if (result.modifiedCount > 0) {
         return res.status(200).json({
             status: 'success',
             message: 'FCM token updated successfully',
@@ -31,3 +32,4 @@ exports.updateOrCreateFcmToken = catchAsync(async (req, res, next) => {
         });
     }
 });
+

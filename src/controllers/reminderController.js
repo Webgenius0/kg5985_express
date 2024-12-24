@@ -37,9 +37,21 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             return next(new AppError("Invalid date format for reminderDateTime", 400));
         }
 
+        // Handle uploaded files (req.files is an array from upload.array middleware)
+        let imageUrls = [];
+        if (req.files && req.files.length > 0) {
+            imageUrls = req.files.map(
+                (file) => `${req.protocol}://${req.get('host')}/images/display-${file.filename}`
+            );
+        }
+
         // Create the reminder in the database
         const reminder = await Reminder.create({
-            title, reminderDateTime: date, notes, userID,
+            title,
+            reminderDateTime: date,
+            notes,
+            userID,
+            images: imageUrls, // Save array of image URLs
         });
 
         // Schedule the reminder
@@ -55,6 +67,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
         next(error);
     }
 });
+
 
 
 
@@ -138,7 +151,6 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 
 // Function to send push notification
 const sendPushNotification = async (reminder) => {
-
     const { userID, title, notes, images } = reminder;
 
     try {
@@ -160,14 +172,20 @@ const sendPushNotification = async (reminder) => {
                 notification: {
                     title: `Reminder: ${title}`,
                     body: notes || "You have a scheduled reminder!",
+                    image: images && images.length > 0 ? images[0] : undefined,
                 },
-                ...(images && images.length > 0 && { image: images[0] }),
             };
 
             try {
                 const response = await messaging.send(message);
                 console.log('Notification sent successfully:', response);
             } catch (error) {
+                // Handle token errors (invalid or expired tokens)
+                if (error.code === 'messaging/registration-token-not-registered') {
+                    console.log('FCM token expired or invalid. Removing from database.');
+                    // Optionally, you can remove invalid token from the database or mark it as expired
+                    await FCM.deleteOne({ fcmToken: fcmData.fcmToken });
+                }
                 console.error('Error sending notification:', error);
             }
         }
@@ -175,6 +193,8 @@ const sendPushNotification = async (reminder) => {
         console.error('Error in sendPushNotification:', error);
     }
 };
+
+
 
 
 

@@ -47,11 +47,12 @@ app.get("/",(req,res)=>{
 app.use("/api/v1", router);
 
 
-// Serve static files from 'src/public/uploads'
-app.use('/images', express.static(path.join(__dirname, 'src', 'public', 'uploads')));
 
-// Logging the uploads directory to ensure the path is correct
-console.log('Uploads directory:', path.join(__dirname, 'public/uploads'));
+// Correct static directory setup
+app.use('/images', express.static(path.join(__dirname, 'public/uploads')));
+console.log("Static uploads directory:", path.join(__dirname, 'public/uploads'));
+
+
 
 // Handling undefined routes
 app.all("*", (req, res, next) => {

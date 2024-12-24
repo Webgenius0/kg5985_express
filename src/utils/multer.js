@@ -4,7 +4,9 @@ const path = require('path');
 const fs = require('fs');
 
 // Set up the upload directory
-const uploadDir = path.join(__dirname, '../public/uploads');
+
+const uploadDir = path.join(__dirname, '..', '..', 'public', 'uploads');
+console.log("uploadDir",uploadDir);
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -25,7 +27,7 @@ const fileFilter = (req, file, cb) => {
     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
         cb(null, true); // Accept file
     } else {
-        cb(new Error('Only JPG or JPEG files are allowed!'), false); // Reject file
+        cb(new Error('Only JPG or JPEG files are allowed!'), false);
     }
 };
 
