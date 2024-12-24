@@ -8,7 +8,7 @@ const admin = require('firebase-admin');
 const FCM = require("../models/fcmTokenModel");
 
 // Firebase Admin Initialization
-const serviceAccount = require('../../serviceAccount.json');
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -195,23 +195,19 @@ const sendPushNotification = async (reminder) => {
 };
 
 
-
-
-
-
-
 // Function to mark reminder as completed
 const markReminderAsCompleted = async (reminderID) => {
     try {
         await Reminder.findByIdAndUpdate(reminderID, {
             isComplete: true, executionTime: new Date().toISOString(),
-            isSnoozeActive:true
+            isSnoozeActive:false
         });
         console.log(`Reminder ${reminderID} marked as completed.`);
     } catch (error) {
         console.error('Error marking reminder as completed:', error);
     }
 };
+
 
 //delete reminders
 exports.deleteReminder = catchAsync(async (req, res, next) => {
