@@ -138,33 +138,44 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 
 // Function to send push notification
 const sendPushNotification = async (reminder) => {
+
     const { userID, title, notes, images } = reminder;
 
-    const fcmToken = await FCM.find({userID:userID});
-    // Assuming user has an `fcmToken` stored in the database
-    const user = await User.findById(userID);
-    if (!user || fcmToken) {
-        console.log(`No FCM token found for user: ${userID}`);
-        return;
-    }
-
-    const message = {
-        token: fcmToken,
-        notification: {
-            title: `Reminder: ${title}`,
-            body: notes || "You have a scheduled reminder!",
-        },
-        // Optional: Include image in the notification
-        ...(images.length > 0 && { image: images[0] }),
-    };
-
     try {
-        const response = await messaging.send(message);
-        console.log('Notification sent successfully:', response);
+        // Fetch FCM tokens and user data
+        const fcmDataArray = await FCM.find({ userID: userID });
+        console.log("fcmData", fcmDataArray);
+        const user = await User.findById(userID);
+
+        // Check for valid user and FCM token
+        if (!user || fcmDataArray.length === 0) {
+            console.log(`No FCM token found for user: ${userID}`);
+            return;
+        }
+
+        // Loop through FCM tokens and send notifications
+        for (const fcmData of fcmDataArray) {
+            const message = {
+                token: fcmData.fcmToken,
+                notification: {
+                    title: `Reminder: ${title}`,
+                    body: notes || "You have a scheduled reminder!",
+                },
+                ...(images && images.length > 0 && { image: images[0] }),
+            };
+
+            try {
+                const response = await messaging.send(message);
+                console.log('Notification sent successfully:', response);
+            } catch (error) {
+                console.error('Error sending notification:', error);
+            }
+        }
     } catch (error) {
-        console.error('Error sending notification:', error);
+        console.error('Error in sendPushNotification:', error);
     }
 };
+
 
 
 
