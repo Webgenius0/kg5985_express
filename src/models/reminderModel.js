@@ -1,10 +1,5 @@
 const mongoose = require('mongoose');
 
-// Function to validate date and time
-// const validateDate = (value) => {
-//     const parsedDate = new Date(value);
-//     return !isNaN(parsedDate); // Ensure the value is a valid date or date-time
-// };
 
 const ReminderSchema = new mongoose.Schema(
     {
@@ -12,6 +7,7 @@ const ReminderSchema = new mongoose.Schema(
             type: String,
             required: [true, "Title is required"],
             trim: true,
+            index: true,
             minlength: [5, "Title should be at least 5 characters long"],
             maxlength: [100, "Title should not exceed 100 characters"],
         },
@@ -25,6 +21,7 @@ const ReminderSchema = new mongoose.Schema(
             trim: true,
             maxlength: [500, "Notes should not exceed 500 characters"],
         },
+        timeZone: {type: String, required: [true, "Reminder time zone is required"], index: true, trim: true},
         images: {
             type: [String],
             validate: {
@@ -49,8 +46,8 @@ const ReminderSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
-        isSnoozeActive:{type:Boolean,default:false},
-        snoozedTime:{type:String,default:null},
+        isSnoozeActive: {type: Boolean, default: false},
+        snoozedTime: {type: String, default: null},
     },
     {
         timestamps: true,

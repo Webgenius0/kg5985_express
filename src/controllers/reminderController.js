@@ -1,11 +1,11 @@
 const catchAsync = require('../utils/catchAsync');
 const AppError = require("../utils/AppError");
-const Reminder = require("../models/reminderModel");
-const moment = require('moment');
+const moment = require('moment-timezone');
 const User = require("../models/userModel");
 const cron = require('node-cron');
 const admin = require('firebase-admin');
 const FCM = require("../models/fcmTokenModel");
+const Reminder = require("../models/reminderModel");
 
 // Firebase Admin Initialization
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
@@ -18,26 +18,80 @@ admin.initializeApp({
 const messaging = admin.messaging();
 
 
+// exports.createReminder = catchAsync(async (req, res, next) => {
+//     try {
+//         const { title, reminderDateTime, notes, timeZone } = req.body;
+//         const userID = req.user._id;
+//
+//         // Validate required fields
+//         if (!title || !reminderDateTime || !userID || !timeZone) {
+//             return next(new AppError("Title, reminder date, user ID, and time zone are required", 400));
+//         }
+//
+//         // Convert reminderDateTime to the user's time zone
+//         const date = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone).toDate();
+//         console.log('Parsed Date in User Time Zone:', date);
+//
+//         // Validate parsed date
+//         if (isNaN(date)) {
+//             return next(new AppError("Invalid date format for reminderDateTime", 400));
+//         }
+//
+//         // Handle uploaded files (req.files is an array from upload.array middleware)
+//         let imageUrls = [];
+//         if (req.files && req.files.length > 0) {
+//             imageUrls = req.files.map(
+//                 (file) => `${req.protocol}://${req.get('host')}/images/display-${file.filename}`
+//             );
+//         }
+//
+//         // Create the reminder in the database
+//         const reminder = await Reminder.create({
+//             title,
+//             reminderDateTime: date,
+//             notes,
+//             userID,
+//             images: imageUrls,
+//         });
+//
+//         // Schedule the reminder
+//         await scheduleReminder(reminder, date);
+//
+//         // Send response back
+//         res.status(201).json({
+//             status: "success",
+//             message: "Reminder scheduled successfully",
+//             data: reminder,
+//         });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
+
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
-        const { title, reminderDateTime, notes } = req.body;
+        const { title, reminderDateTime, notes, timeZone } = req.body;
         const userID = req.user._id;
 
-        // Validate required fields
-        if (!title || !reminderDateTime || !userID) {
-            return next(new AppError("Title, reminder date, and user ID are required", 400));
+        if (!title || !reminderDateTime || !userID || !timeZone) {
+            return next(new AppError("Title, reminder date, user ID, and time zone are required", 400));
         }
 
-        // Parse the reminderDateTime into a valid Date object (in BST)
-        const date = moment(reminderDateTime, "DD MMM YYYY, h:mm A").add(6, 'hours').toDate();
-        console.log('Parsed Date in BST:', date);
+        // Parse the reminderDateTime with the provided timeZone
+        const userDate = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone);
 
-        // Validate parsed date
-        if (isNaN(date)) {
+        console.log(`User Date: ${userDate.format()}`); // Debugging user's date in their local timezone
+
+        if (!userDate.isValid()) {
             return next(new AppError("Invalid date format for reminderDateTime", 400));
         }
 
-        // Handle uploaded files (req.files is an array from upload.array middleware)
+        // Convert to UTC for database storage
+        const utcDate = userDate.utc();
+
+        console.log(`UTC Date for storage: ${utcDate.format()}`); // Debugging the UTC date for storage
+
+        // Handle uploaded images if any
         let imageUrls = [];
         if (req.files && req.files.length > 0) {
             imageUrls = req.files.map(
@@ -45,19 +99,19 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             );
         }
 
-        // Create the reminder in the database
+        // Save the reminder in the database
         const reminder = await Reminder.create({
             title,
-            reminderDateTime: date,
+            reminderDateTime: utcDate.toDate(),
             notes,
             userID,
-            images: imageUrls, // Save array of image URLs
+            images: imageUrls,
+            timeZone,
         });
 
-        // Schedule the reminder
-        await scheduleReminder(reminder, date);
+        // Schedule the reminder (using UTC time for consistency)
+        await scheduleReminder(reminder, utcDate.toDate());
 
-        // Send response back
         res.status(201).json({
             status: "success",
             message: "Reminder scheduled successfully",
@@ -68,6 +122,29 @@ exports.createReminder = catchAsync(async (req, res, next) => {
     }
 });
 
+const scheduleReminder = async (reminder, date, isUpdate = false) => {
+    console.log("enter to schedule");
+    const cronTime = moment(date).format('m H D M *');
+    console.log(`${isUpdate ? 'Generated New' : 'Generated'} Cron Time for UTC:`, cronTime);
+
+    if (isUpdate) {
+        cron.getTasks().forEach(task => task.stop());
+        console.log('Canceled existing cron jobs for update.');
+    }
+
+    console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
+    cron.schedule(cronTime, async () => {
+        console.log(`Cron job triggered at: ${new Date().toISOString()}`); // Debugging when the cron job is triggered
+        try {
+            await sendPushNotification(reminder);
+            await markReminderAsCompleted(reminder._id);
+            console.log('Reminder marked as completed');
+        } catch (error) {
+            console.error('Error executing reminder:', error);
+        }
+    });
+};
+
 
 
 
@@ -75,38 +152,39 @@ exports.createReminder = catchAsync(async (req, res, next) => {
 
 exports.updateReminderTime = catchAsync(async (req, res, next) => {
     try {
-        const { reminderDateTime, snoozedTime } = req.body;
+        const { reminderDateTime, snoozedTime, timeZone } = req.body;
         const reminderID = req.params.id;
 
-        // Validate required fields
-        if (!reminderDateTime) {
-            return next(new AppError('Reminder date and time are required', 400));
+        if (!reminderDateTime || !timeZone) {
+            return next(new AppError('Reminder date and time, and time zone are required', 400));
         }
 
-        // Parse the reminderDateTime into a valid Date object (in BST)
-        const date = moment(reminderDateTime, "DD MMM YYYY, h:mm A").add(6, 'hours').toDate();
-        console.log('Parsed Date in BST:', date);
+        const date = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone);
 
-        // Validate parsed date
         if (isNaN(date)) {
             return next(new AppError('Invalid date format for reminderDateTime', 400));
         }
 
-        // Find the reminder to update by its ID
+        const utcDate = date.utc();
+
         const reminder = await Reminder.findById(reminderID);
         if (!reminder) {
-            return next(new AppError('Reminder not found', 200));
+            return next(new AppError('Reminder not found', 404));
         }
 
-        // Update the reminder date in the database
-        reminder.reminderDateTime = date;
+        reminder.reminderDateTime = utcDate.toDate();
         reminder.snoozedTime = snoozedTime;
+        reminder.isSnoozeActive=true;
         await reminder.save();
 
-        // Schedule the updated reminder
-        await scheduleReminder(reminder, date, true);
+        const cronTime = date.format('m H D M *');
+        console.log('Generated Cron Time for User Time Zone:', cronTime);
 
-        // Send response back
+        const cronTimeUTC = utcDate.format('m H D M *');
+        console.log('Generated Cron Time for UTC:', cronTimeUTC);
+
+        await scheduleReminder(reminder, utcDate.toDate(), true);
+
         res.status(200).json({
             status: 'success',
             message: 'Reminder time updated and reminder rescheduled successfully',
@@ -120,33 +198,30 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
 
 
 
+
 //schedule
-const scheduleReminder = async (reminder, date, isUpdate = false) => {
-    // Generate cron time based on the parsed date (in UTC for cron job)
-    const cronTime = moment(date).utc().format('m H D M *');
-    console.log(`${isUpdate ? 'Generated New' : 'Generated'} Cron Time for UTC:`, cronTime);
-
-    // Cancel existing cron jobs if it's an update
-    if (isUpdate) {
-        cron.getTasks().forEach(task => task.stop());
-        console.log('Canceled existing cron jobs for update.');
-    }
-
-    // Schedule the reminder with the new time
-    console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
-    cron.schedule(cronTime, async () => {
-        console.log(`Cron job triggered at: ${new Date().toISOString()}`);
-        try {
-            // Send push notification (when you're ready to enable this)
-            await sendPushNotification(reminder);
-            // Mark reminder as completed
-            await markReminderAsCompleted(reminder._id);
-            console.log('Reminder marked as completed');
-        } catch (error) {
-            console.error('Error executing reminder:', error);
-        }
-    });
-};
+// const scheduleReminder = async (reminder, date, isUpdate = false) => {
+//     console.log("enter to schedule");
+//     const cronTime = moment(date).format('m H D M *');
+//     console.log(`${isUpdate ? 'Generated New' : 'Generated'} Cron Time for UTC:`, cronTime);
+//
+//     if (isUpdate) {
+//         cron.getTasks().forEach(task => task.stop());
+//         console.log('Canceled existing cron jobs for update.');
+//     }
+//
+//     console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
+//     cron.schedule(cronTime, async () => {
+//         console.log(`Cron job triggered at: ${new Date().toISOString()}`);
+//         try {
+//             await sendPushNotification(reminder);
+//             await markReminderAsCompleted(reminder._id);
+//             console.log('Reminder marked as completed');
+//         } catch (error) {
+//             console.error('Error executing reminder:', error);
+//         }
+//     });
+// };
 
 
 // Function to send push notification
@@ -209,6 +284,7 @@ const markReminderAsCompleted = async (reminderID) => {
 };
 
 
+
 //delete reminders
 exports.deleteReminder = catchAsync(async (req, res, next) => {
     try {
@@ -236,18 +312,22 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
     try {
         const reminderID = req.params.id;
 
-        // Check if reminder exists
         const reminder = await Reminder.findById(reminderID);
         if (!reminder) {
             return next(new AppError("Reminder not found", 200));
         }
 
-        // Adjust the reminderDateTime field
-        const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+        const { reminderDateTime, timeZone } = reminder;
 
-        // Send the adjusted reminder
+        if (!reminderDateTime || !timeZone) {
+            return next(new AppError("Reminder date or time zone is missing", 400));
+        }
+
+        const adjustedDate = moment(reminderDateTime).tz(timeZone, true).format();
+
         res.status(200).json({
-            status: "success", data: { ...reminder.toObject(), reminderDateTime: adjustedDate }
+            status: "success",
+            data: { ...reminder.toObject(), reminderDateTime: adjustedDate }
         });
     } catch (error) {
         next(error);
@@ -255,14 +335,35 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
 });
 
 
+
 // Get all Reminders
 exports.getAllReminders = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
-        const reminders = await Reminder.find({userID: userID});
+        const reminders = await Reminder.find({ userID });
 
         const adjustedReminders = reminders.map(reminder => {
-            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+            const reminderDateTime = reminder.reminderDateTime;
+            const timeZone = reminder.timeZone;
+
+            if (!reminderDateTime || !timeZone) {
+                return {
+                    ...reminder.toObject(),
+                    reminderDateTime: null
+                };
+            }
+
+            const date = moment(reminderDateTime).tz(timeZone, true);
+
+            if (!date.isValid()) {
+                return {
+                    ...reminder.toObject(),
+                    reminderDateTime: null
+                };
+            }
+
+            const adjustedDate = date.format();
+
             return {
                 ...reminder.toObject(),
                 reminderDateTime: adjustedDate
@@ -280,6 +381,7 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
 
 
 
+
 //active reminders
 exports.activeReminders = catchAsync(async (req, res, next) => {
     try {
@@ -287,19 +389,28 @@ exports.activeReminders = catchAsync(async (req, res, next) => {
         let activeReminders = await Reminder.find({ userID: userID, isComplete: false });
 
         if (!activeReminders || activeReminders.length === 0) {
-            return next(new AppError("Reminder not found", 200));
+            return next(new AppError("No active reminders found", 200));
         }
 
-        // Adjust the reminderDateTime for each reminder
         const adjustedReminders = activeReminders.map(reminder => {
-            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
+            const { reminderDateTime, timeZone } = reminder;
+
+            if (!reminderDateTime || !timeZone) {
+                return next(new AppError("Reminder date or time zone is missing", 400));
+            }
+
+            const adjustedDate = moment(reminderDateTime).tz(timeZone, true).format();
+
             return {
                 ...reminder.toObject(),
                 reminderDateTime: adjustedDate
             };
         });
 
-        res.status(200).json({ status: "success", data: adjustedReminders });
+        res.status(200).json({
+            status: "success",
+            data: adjustedReminders
+        });
     } catch (error) {
         next(error);
     }
