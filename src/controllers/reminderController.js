@@ -81,7 +81,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
         // Parse the reminderDateTime with the provided timeZone
         const userDate = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone);
 
-        console.log(`User Date: ${userDate.format()}`); // Debugging user's date in their local timezone
+        console.log(`User Date: ${userDate.format()}`);
 
         if (!userDate.isValid()) {
             return next(new AppError("Invalid date format for reminderDateTime", 400));
@@ -90,7 +90,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
         // Convert to UTC for database storage
         const utcDate = userDate.utc();
 
-        console.log(`UTC Date for storage: ${utcDate.format()}`); // Debugging the UTC date for storage
+        console.log(`UTC Date for storage: ${utcDate.format()}`);
 
         // Handle uploaded images if any
         let imageUrls = [];
@@ -123,6 +123,8 @@ exports.createReminder = catchAsync(async (req, res, next) => {
     }
 });
 
+
+
 const scheduleReminder = async (reminder, date, isUpdate = false) => {
     console.log("enter to schedule");
     const cronTime = moment(date).format('m H D M *');
@@ -135,7 +137,7 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 
     console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
     cron.schedule(cronTime, async () => {
-        console.log(`Cron job triggered at: ${new Date().toISOString()}`); // Debugging when the cron job is triggered
+        console.log(`Cron job triggered at: ${new Date().toISOString()}`);
         try {
             await sendPushNotification(reminder);
             await markReminderAsCompleted(reminder._id);
@@ -147,10 +149,7 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 };
 
 
-
-
 //update reminder
-
 exports.updateReminderTime = catchAsync(async (req, res, next) => {
     try {
         const { reminderDateTime, snoozedTime, timeZone } = req.body;
@@ -195,8 +194,6 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
         next(error);
     }
 });
-
-
 
 
 
@@ -285,7 +282,6 @@ const markReminderAsCompleted = async (reminderID) => {
 };
 
 
-
 //delete reminders
 exports.deleteReminder = catchAsync(async (req, res, next) => {
     try {
@@ -336,7 +332,6 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
 });
 
 
-
 // Get all Reminders
 exports.getAllReminders = catchAsync(async (req, res, next) => {
     try {
@@ -379,8 +374,6 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
         next(error);
     }
 });
-
-
 
 
 //active reminders
