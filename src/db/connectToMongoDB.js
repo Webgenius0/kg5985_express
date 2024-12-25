@@ -9,14 +9,15 @@ async function connectToMongoDB(req, res, next) {
             return next(new AppError("MONGODB_URI is not defined in the environment variables.", 500));
         }
 
-        const options = {
+        const fullUri = `${uri}/reminderApp?retryWrites=true&w=majority`;
+
+        await mongoose.connect(fullUri, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 5000,
-        };
+        });
 
-        await mongoose.connect(`${uri}/reminderApp`, options);
         console.log("Connected to MongoDB");
+
     } catch (error) {
         if (error instanceof AppError) {
             console.error(`AppError: ${error.message}`);
@@ -24,10 +25,8 @@ async function connectToMongoDB(req, res, next) {
             console.error("Unexpected Error connecting to MongoDB:", error.message);
         }
 
-        // Retry logic or graceful shutdown
-        setTimeout(() => process.exit(1), 5000);
+        process.exit(1);
     }
 }
 
 module.exports = connectToMongoDB;
-
