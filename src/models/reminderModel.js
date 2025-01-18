@@ -5,11 +5,8 @@ const ReminderSchema = new mongoose.Schema(
     {
         title: {
             type: String,
-            required: [true, "Title is required"],
             trim: true,
             index: true,
-            minlength: [5, "Title should be at least 5 characters long"],
-            maxlength: [100, "Title should not exceed 100 characters"],
         },
         reminderDateTime: {
             type: Date,
@@ -19,7 +16,6 @@ const ReminderSchema = new mongoose.Schema(
         notes: {
             type: String,
             trim: true,
-            maxlength: [500, "Notes should not exceed 500 characters"],
         },
         timeZone: {type: String, required: [true, "Reminder time zone is required"], index: true, trim: true},
         images: {
