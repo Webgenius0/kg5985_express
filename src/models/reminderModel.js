@@ -42,6 +42,11 @@ const ReminderSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
+        location:{
+            name:{type:String,index:true,trim:true},
+            latitude:{type:String,index:true,trim:true},
+            longitude:{type:String,index:true,trim:true}
+        },
         isSnoozeActive: {type: Boolean, default: false},
         snoozedTime: {type: String, default: null},
     },
@@ -51,6 +56,13 @@ const ReminderSchema = new mongoose.Schema(
     }
 );
 
-const Reminder = mongoose.model("Reminder", ReminderSchema);
+// ReminderSchema.pre("remove", async function (next) {
+//     // Example: Delete related notifications or logs
+//     await RelatedModel.deleteMany({ reminderID: this._id });
+//     next();
+// });
+
+
+const Reminder = mongoose.model("reminders", ReminderSchema);
 
 module.exports = Reminder;

@@ -6,6 +6,7 @@ const cron = require('node-cron');
 const admin = require('firebase-admin');
 const FCM = require("../models/fcmTokenModel");
 const Reminder = require("../models/reminderModel");
+const Locations = require("../models/locationsModel");
 
 // Load Firebase service account JSON file
 const serviceAccount = require("../../kg5985-firebase-adminsdk-h3qe8-5d58911bc6.json");
@@ -72,7 +73,7 @@ const messaging = admin.messaging();
 
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
-        const { title, reminderDateTime, notes, timeZone } = req.body;
+        const { title, reminderDateTime, notes, timeZone,name,latitude,longitude } = req.body;
         const userID = req.user._id;
 
         console.log(userID)
@@ -99,6 +100,14 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             );
         }
 
+        if(name && latitude && longitude){
+            await Locations.create({
+                name,
+                latitude,
+                longitude
+            })
+        }
+
         // Save the reminder in the database
         const reminder = await Reminder.create({
             title,
@@ -107,6 +116,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             userID,
             images: imageUrls,
             timeZone,
+            location: { name, latitude, longitude },
         });
 
         // Schedule the reminder (using UTC time for consistency)
@@ -491,6 +501,17 @@ exports.snoozedList = catchAsync(async (req, res, next) => {
     }
 });
 
+
+//find locations
+exports.locationList = catchAsync(async (req, res, next) => {
+    const locations = await Locations.find();
+    if (!locations || locations.length === 0) {
+        return next(new AppError("Locations not found", 200));
+    }
+    res.status(200).json({
+        status: 'success', data: locations
+    })
+})
 
 // //update snoozed time
 // exports.updateSnoozedTime = catchAsync(async (req, res, next) => {
