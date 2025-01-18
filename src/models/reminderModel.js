@@ -1,19 +1,12 @@
 const mongoose = require('mongoose');
 
-// Function to validate date and time
-// const validateDate = (value) => {
-//     const parsedDate = new Date(value);
-//     return !isNaN(parsedDate); // Ensure the value is a valid date or date-time
-// };
 
 const ReminderSchema = new mongoose.Schema(
     {
         title: {
             type: String,
-            required: [true, "Title is required"],
             trim: true,
-            minlength: [5, "Title should be at least 5 characters long"],
-            maxlength: [100, "Title should not exceed 100 characters"],
+            index: true,
         },
         reminderDateTime: {
             type: Date,
@@ -23,8 +16,8 @@ const ReminderSchema = new mongoose.Schema(
         notes: {
             type: String,
             trim: true,
-            maxlength: [500, "Notes should not exceed 500 characters"],
         },
+        timeZone: {type: String, required: [true, "Reminder time zone is required"], index: true, trim: true},
         images: {
             type: [String],
             validate: {
@@ -49,8 +42,13 @@ const ReminderSchema = new mongoose.Schema(
             type: Date,
             default: null,
         },
-        isSnoozeActive:{type:Boolean,default:false},
-        snoozedTime:{type:String,default:null},
+        location:{
+            name:{type:String,index:true,trim:true},
+            latitude:{type:String,index:true,trim:true},
+            longitude:{type:String,index:true,trim:true}
+        },
+        isSnoozeActive: {type: Boolean, default: false},
+        snoozedTime: {type: String, default: null},
     },
     {
         timestamps: true,
@@ -58,6 +56,13 @@ const ReminderSchema = new mongoose.Schema(
     }
 );
 
-const Reminder = mongoose.model("Reminder", ReminderSchema);
+// ReminderSchema.pre("remove", async function (next) {
+//     // Example: Delete related notifications or logs
+//     await RelatedModel.deleteMany({ reminderID: this._id });
+//     next();
+// });
+
+
+const Reminder = mongoose.model("reminders", ReminderSchema);
 
 module.exports = Reminder;

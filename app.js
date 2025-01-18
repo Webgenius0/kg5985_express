@@ -28,7 +28,7 @@ const connectToMongoDB = require("./src/db/connectToMongoDB");
 
 // Implementing security middlewares
 app.use(cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: "*",
     credentials: true,
 }));
 app.use(express.json({ limit: "100mb" }));
