@@ -9,7 +9,7 @@ const Reminder = require("../models/reminderModel");
 const Locations = require("../models/locationsModel");
 
 // Load Firebase service account JSON file
-const serviceAccount = require("../../kg5985-firebase-adminsdk-h3qe8-5d58911bc6.json");
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
 // Firebase Admin Initialization
 admin.initializeApp({
