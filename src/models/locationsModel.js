@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const locationSchema = new mongoose.Schema({
-    name:{type:String,index:true,trim:true},
+    locationTitle:{type:String,index:true,trim:true},
+    locationAddress:{type:String,index:true,trim:true},
     latitude:{type:String,index:true,trim:true},
     longitude:{type:String,index:true,trim:true},
 },

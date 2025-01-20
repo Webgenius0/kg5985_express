@@ -73,7 +73,7 @@ const messaging = admin.messaging();
 
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
-        const { title, reminderDateTime, notes, timeZone,name,latitude,longitude } = req.body;
+        const { title, reminderDateTime, notes, timeZone,locationTitle,locationAddress,latitude,longitude } = req.body;
         const userID = req.user._id;
 
         console.log(userID)
@@ -100,9 +100,10 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             );
         }
 
-        if(name && latitude && longitude){
+        if(locationTitle && locationAddress && latitude && longitude){
             await Locations.create({
-                name,
+                locationTitle,
+                locationAddress,
                 latitude,
                 longitude
             })
@@ -116,7 +117,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             userID,
             images: imageUrls,
             timeZone,
-            location: { name, latitude, longitude },
+            location: { locationTitle,locationAddress, latitude, longitude },
         });
 
         // Schedule the reminder (using UTC time for consistency)
@@ -510,6 +511,24 @@ exports.locationList = catchAsync(async (req, res, next) => {
     }
     res.status(200).json({
         status: 'success', data: locations
+    })
+})
+
+//create locations
+exports.createLocation = catchAsync(async (req, res, next) => {
+    const {locationTitle,locationAddress,latitude,longitude} = req.body;
+    const location = await Location.findOne({ locationTitle: locationTitle });
+    if (!location) {
+        return next(new AppError("Location already exists", 200));
+    }
+    await Location.create({
+        locationTitle,
+        locationAddress,
+        latitude,
+        longitude,
+    });
+    res.status(201).json({
+        status: 'success', message: 'Location created successfully'
     })
 })
 

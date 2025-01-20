@@ -3,7 +3,7 @@ const {registerUser, loginUser, logout, updatePassword, updateProfile} = require
 const verifyToken = require("../middlewares/verifyToken");
 const {createReminder, deleteReminder, getSingleReminder,
     getAllReminders, activeReminders, completedReminder, snoozeReminder, snoozedList,
-    updateReminderTime, locationList
+    updateReminderTime, locationList, createLocation
 } = require("../controllers/reminderController");
 const {createHelp} = require("../controllers/helpController");
 const {resizeImages, upload} = require("../utils/multer");
@@ -26,6 +26,7 @@ router.get('/reminders',verifyToken, getAllReminders);
 router.get('/active-reminders',verifyToken, activeReminders);
 router.get('/complete-reminders',verifyToken, completedReminder);
 router.get("/locations", verifyToken, locationList);
+router.post("/create-location",verifyToken, createLocation);
 
 //manage fcm
 router.post('/update-fcm-token', verifyToken, updateOrCreateFcmToken);
