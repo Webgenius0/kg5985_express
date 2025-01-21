@@ -516,12 +516,10 @@ exports.locationList = catchAsync(async (req, res, next) => {
 
 //create locations
 exports.createLocation = catchAsync(async (req, res, next) => {
+
     const {locationTitle,locationAddress,latitude,longitude} = req.body;
-    const location = await Location.findOne({ locationTitle: locationTitle });
-    if (!location) {
-        return next(new AppError("Location already exists", 200));
-    }
-    await Location.create({
+
+    await Locations.create({
         locationTitle,
         locationAddress,
         latitude,
