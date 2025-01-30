@@ -3,7 +3,7 @@ const {registerUser, loginUser, logout, updatePassword, updateProfile} = require
 const verifyToken = require("../middlewares/verifyToken");
 const {createReminder, deleteReminder, getSingleReminder,
     getAllReminders, activeReminders, completedReminder, snoozeReminder, snoozedList,
-    updateReminderTime, locationList, createLocation
+    updateReminderTime, locationList, createLocation, updateReminder
 } = require("../controllers/reminderController");
 const {createHelp} = require("../controllers/helpController");
 const {resizeImages, upload} = require("../utils/multer");
@@ -20,6 +20,7 @@ router.put('/update-profile', verifyToken, updateProfile);
 
 //reminders
 router.post('/create-reminder',verifyToken, upload.array('images'),resizeImages, createReminder );
+router.put("/update-reminder/:id",verifyToken, updateReminder);
 router.delete('/remove-reminder/:id',verifyToken, deleteReminder);
 router.get('/reminder/:id',verifyToken, getSingleReminder);
 router.get('/reminders',verifyToken, getAllReminders);
