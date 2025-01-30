@@ -73,7 +73,7 @@ const messaging = admin.messaging();
 
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
-        const { title, reminderDateTime, notes, timeZone,locationTitle,locationAddress,latitude,longitude } = req.body;
+        const { title, reminderDateTime, notes, timeZone,locationTitle,locationAddress,latitude,longitude,emoji } = req.body;
         const userID = req.user._id;
 
         console.log(userID)
@@ -118,6 +118,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             images: imageUrls,
             timeZone,
             location: { locationTitle,locationAddress, latitude, longitude },
+            emoji
         });
 
         // Schedule the reminder (using UTC time for consistency)
@@ -162,7 +163,7 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 //update reminder
 exports.updateReminderTime = catchAsync(async (req, res, next) => {
     try {
-        const { reminderDateTime, snoozedTime, timeZone } = req.body;
+        const { reminderDateTime, snoozedTime, timeZone,emoji } = req.body;
         const reminderID = req.params.id;
 
         if (!reminderDateTime || !timeZone) {
@@ -185,6 +186,7 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
         reminder.reminderDateTime = utcDate.toDate();
         reminder.snoozedTime = snoozedTime;
         reminder.isSnoozeActive=true;
+        reminder.emoji=emoji;
         await reminder.save();
 
         const cronTime = date.format('m H D M *');

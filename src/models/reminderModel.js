@@ -11,11 +11,16 @@ const ReminderSchema = new mongoose.Schema(
         reminderDateTime: {
             type: Date,
             required: [true, "Reminder date and time is required"],
-
         },
         notes: {
             type: String,
             trim: true,
+            index: true,
+        },
+        emoji:{
+            type: String,
+            trim: true,
+            index: true,
         },
         timeZone: {type: String, required: [true, "Reminder time zone is required"], index: true, trim: true},
         images: {
