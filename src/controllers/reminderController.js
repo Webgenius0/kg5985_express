@@ -135,6 +135,72 @@ exports.createReminder = catchAsync(async (req, res, next) => {
 });
 
 
+exports.updateReminder = catchAsync(async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const userID = req.user._id;
+
+        // Find the existing reminder
+        let reminder = await Reminder.findOne({ _id: id, userID });
+
+        if (!reminder) {
+            return next(new AppError("Reminder not found", 404));
+        }
+
+        // Prepare an update object
+        let updateData = {};
+
+        // Conditionally update fields
+        if (req.body.title) updateData.title = req.body.title;
+        if (req.body.notes) updateData.notes = req.body.notes;
+        if (req.body.emoji) updateData.emoji = req.body.emoji;
+        if (req.body.timeZone) updateData.timeZone = req.body.timeZone;
+
+        // Handle reminderDateTime update
+        if (req.body.reminderDateTime) {
+            const userDate = moment.tz(req.body.reminderDateTime, "DD MMM YYYY, h:mm A", req.body.timeZone || reminder.timeZone);
+            if (!userDate.isValid()) {
+                return next(new AppError("Invalid date format for reminderDateTime", 400));
+            }
+            updateData.reminderDateTime = userDate.utc().toDate();
+        }
+
+        // Handle uploaded images if any
+        if (req.files && req.files.length > 0) {
+            updateData.images = req.files.map(
+                (file) => `${req.protocol}://${req.get("host")}/images/display-${file.filename}`
+            );
+        }
+
+        // // Handle location update
+        // if (req.body.locationTitle || req.body.locationAddress || req.body.latitude || req.body.longitude) {
+        //     updateData.location = {
+        //         locationTitle: req.body.locationTitle || reminder.location.locationTitle,
+        //         locationAddress: req.body.locationAddress || reminder.location.locationAddress,
+        //         latitude: req.body.latitude || reminder.location.latitude,
+        //         longitude: req.body.longitude || reminder.location.longitude
+        //     };
+        // }
+
+        // Update the reminder in the database
+        reminder = await Reminder.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+
+        // Reschedule the reminder notification if the date was updated
+        if (updateData.reminderDateTime) {
+            await scheduleReminder(reminder, updateData.reminderDateTime);
+        }
+
+        res.status(200).json({
+            status: "success",
+            message: "Reminder updated successfully",
+            data: reminder,
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+
 
 const scheduleReminder = async (reminder, date, isUpdate = false) => {
     console.log("enter to schedule");
@@ -163,7 +229,7 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 //update reminder
 exports.updateReminderTime = catchAsync(async (req, res, next) => {
     try {
-        const { reminderDateTime, snoozedTime, timeZone,emoji } = req.body;
+        const { reminderDateTime, snoozedTime, timeZone } = req.body;
         const reminderID = req.params.id;
 
         if (!reminderDateTime || !timeZone) {
@@ -186,7 +252,6 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
         reminder.reminderDateTime = utcDate.toDate();
         reminder.snoozedTime = snoozedTime;
         reminder.isSnoozeActive=true;
-        reminder.emoji=emoji;
         await reminder.save();
 
         const cronTime = date.format('m H D M *');
