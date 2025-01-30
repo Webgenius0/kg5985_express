@@ -150,11 +150,12 @@ exports.updateProfile = catchAsync(async (req, res, next) => {
        if(!userID || !user) {
            return next(new AppError("User not found", 401));
        }
-      const {firstName,lastName,avatar} = req.body;
+      const {firstName,lastName,avatar,email} = req.body;
       let updateFields = {};
       if(firstName !== undefined) updateFields.firstName = firstName;
       if(lastName !== undefined) updateFields.lastName = lastName;
       if(avatar !== undefined) updateFields.avatar = avatar;
+      if(email !== undefined) updateFields.email = email;
       const updateProfile = await User.findByIdAndUpdate(userID,updateFields,{new:true});
       res.status(200).json({data:updateProfile,message:"Profile updated"});
     }
