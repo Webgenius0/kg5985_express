@@ -3,7 +3,7 @@ const AppError = require("../utils/AppError");
 
 async function connectToMongoDB() {
     try {
-        const uri = "mongodb+srv://reminderAPP:reminderAPP@cluster0.zpzeg.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0/kg"
+        const uri = "mongodb+srv://reminderAPP:reminderAPP@cluster0.zpdwq.mongodb.net/kg"
         await mongoose.connect(uri);
         console.log("Connected to MongoDB");
     } catch (error) {
