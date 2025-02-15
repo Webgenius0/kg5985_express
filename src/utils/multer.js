@@ -14,7 +14,7 @@ if (!fs.existsSync(uploadDir)) {
 // Multer configuration for file uploads
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        cb(null, uploadDir); // Upload directory
+        cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -22,17 +22,18 @@ const storage = multer.diskStorage({
     },
 });
 
-// File filter to allow only JPG/JPEG formats
-const fileFilter = (req, file, cb) => {
-    if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
-        cb(null, true); // Accept file
-    } else {
-        cb(new Error('Only JPG or JPEG files are allowed!'), false);
-    }
-};
+// // File filter to allow only JPG/JPEG formats
+// const fileFilter = (req, file, cb) => {
+//     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/jpg') {
+//         cb(null, true); // Accept file
+//     } else {
+//         cb(new Error('Only JPG or JPEG files are allowed!'), false);
+//     }
+// };
 
 // Multer setup with storage and file filter
-const upload = multer({ storage: storage, fileFilter: fileFilter });
+// const upload = multer({ storage: storage, fileFilter: fileFilter });
+const upload = multer({ storage: storage});
 
 // Middleware to resize images after upload
 const resizeImages = async (req, res, next) => {
