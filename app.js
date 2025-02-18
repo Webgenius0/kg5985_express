@@ -38,6 +38,12 @@ app.use(helmet());
 app.use(mongoSanitize());
 app.use(limiter);
 
+app.use((req, res, next) => {
+    req.setTimeout(300000);
+    res.setTimeout(300000);
+    next();
+});
+
 //welcome to route
 app.get("/",(req,res)=>{
     res.status(200).json({message:"Welcome to KG5985"});

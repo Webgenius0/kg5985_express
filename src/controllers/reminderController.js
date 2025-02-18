@@ -413,7 +413,7 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
 exports.getAllReminders = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
-        const reminders = await Reminder.find({ userID });
+        const reminders = await Reminder.find({ userID }).sort({ createdAt: -1 });
 
         const adjustedReminders = reminders.map(reminder => {
             const reminderDateTime = reminder.reminderDateTime;
@@ -451,6 +451,7 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
         next(error);
     }
 });
+
 
 
 //active reminders
