@@ -344,7 +344,6 @@ const sendPushNotification = async (reminder) => {
     }
 };
 
-
 // Function to mark reminder as completed
 const markReminderAsCompleted = async (reminderID) => {
     try {
@@ -357,7 +356,6 @@ const markReminderAsCompleted = async (reminderID) => {
         console.error('Error marking reminder as completed:', error);
     }
 };
-
 
 //delete reminders
 exports.deleteReminder = catchAsync(async (req, res, next) => {
@@ -451,7 +449,6 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
         next(error);
     }
 });
-
 
 
 //active reminders

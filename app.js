@@ -39,7 +39,6 @@ app.use(mongoSanitize());
 app.use(limiter);
 
 
-
 //welcome to route
 app.get("/",(req,res)=>{
     res.status(200).json({message:"Welcome to KG5985"});
@@ -70,7 +69,6 @@ app.use((err, req, res, next) => {
 });
 
 // Call the async function to connect to MongoDB
-
 connectToMongoDB();
 
 module.exports = app;
