@@ -1,5 +1,5 @@
 const express = require('express');
-const {registerUser, loginUser, logout, updatePassword, updateProfile, forgotPassword, resetPassword} = require("../controllers/userController");
+const {registerUser, loginUser, logout, updatePassword, updateProfile, forgotPassword, resetPassword, verifyOtp} = require("../controllers/userController");
 const verifyToken = require("../middlewares/verifyToken");
 const {createReminder, deleteReminder, getSingleReminder,
     getAllReminders, activeReminders, completedReminder, snoozeReminder, snoozedList,
@@ -17,6 +17,7 @@ router.post('/logout', verifyToken, logout);
 router.post('/update-password', verifyToken, updatePassword);
 router.put('/update-profile', verifyToken, updateProfile);
 router.post('/forgot-password', forgotPassword);
+router.post("/verify-otp", verifyOtp);
 router.post('/reset-password',resetPassword)
 
 

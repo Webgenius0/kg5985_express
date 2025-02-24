@@ -155,7 +155,7 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
 
     const user = await User.findOne({email});
     if (!user) {
-        return res.status(400).json({message: "User not found"});
+        return next(new AppError("User not found", 401));
     }
 
     const otp = crypto.randomBytes(3).toString("hex");
@@ -251,31 +251,52 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
 });
 
 
+
 // Controller to verify OTP and reset the password
-exports.resetPassword = async (req, res) => {
-    try {
-        const {otp, newPassword, email} = req.body;
+exports.verifyOtp = catchAsync(async (req, res,next) => {
+    const { otp, email } = req.body;
 
-        // Check if the OTP is valid and matches the email
-        const otpRecord = await OTP.findOne({otp, email});
-        if (!otpRecord) {
-            return res.status(400).json({message: 'Invalid OTP'});
-        }
-
-        // Find user by email
-        const user = await User.findOne({email});
-        if (!user) {
-            return res.status(400).json({message: 'User not found'});
-        }
-
-        user.password = newPassword;
-        await user.save();
-
-        // Delete OTP record after successful password reset
-        await OTP.deleteOne({_id: otpRecord._id});
-        res.status(200).json({message: 'Password reset successful'});
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({message: 'Server error'});
+    if (!otp || !email) {
+        return next(new AppError("OTP and email are required", 400));
     }
-};
+
+    // Check if the OTP is valid and matches the email
+    const otpRecord = await OTP.findOne({ otp, email });
+    if (!otpRecord) {
+        return next(new AppError("OTP not found", 400));
+    }
+
+    if (otpRecord.isVerified) {
+        return next(new AppError("OTP already verified", 200));
+    }
+
+    otpRecord.isVerified = true;
+    await otpRecord.save();
+
+    res.status(200).json({ message: 'OTP verification successful' });
+});
+
+
+
+// Controller to verify OTP and reset the password
+exports.resetPassword = catchAsync(async (req, res,next) => {
+    const {otp, newPassword, email} = req.body;
+
+    // Check if the OTP is valid and matches the email
+    const otpRecord = await OTP.findOne({otp, email});
+    if (otpRecord.isVerified === false) {
+        return next(new AppError('Please complete your OTP verification',400));
+    }
+    // Find user by email
+    const user = await User.findOne({email});
+    if (!user) {
+        return next(new AppError('User not found', 401));
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // Delete OTP record after successful password reset
+    await OTP.deleteOne({_id: otpRecord._id});
+    res.status(200).json({message: 'Password reset successful'});
+})
