@@ -5,7 +5,7 @@ const catchAsync = require('../utils/catchAsync');
 const bcrypt = require("bcrypt");
 const OTP = require("../models/otpModel");
 const sendOtpEmail = require("../utils/sendOtpEmail");
-const crypto = require('crypto');
+
 
 
 //user registration
@@ -158,7 +158,7 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
         return next(new AppError("User not found", 401));
     }
 
-    const otp = crypto.randomBytes(3).toString("hex");
+    const otp =  Math.round(Math.floor(100000+Math.random()*900000));
 
     const existingOtp = await OTP.findOne({email, isVerified: false});
 

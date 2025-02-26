@@ -8,6 +8,7 @@ const FCM = require("../models/fcmTokenModel");
 const Reminder = require("../models/reminderModel");
 const Locations = require("../models/locationsModel");
 
+
 // Load Firebase service account JSON file
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
@@ -21,62 +22,22 @@ admin.initializeApp({
 const messaging = admin.messaging();
 
 
-// exports.createReminder = catchAsync(async (req, res, next) => {
-//     try {
-//         const { title, reminderDateTime, notes, timeZone } = req.body;
-//         const userID = req.user._id;
-//
-//         // Validate required fields
-//         if (!title || !reminderDateTime || !userID || !timeZone) {
-//             return next(new AppError("Title, reminder date, user ID, and time zone are required", 400));
-//         }
-//
-//         // Convert reminderDateTime to the user's time zone
-//         const date = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone).toDate();
-//         console.log('Parsed Date in User Time Zone:', date);
-//
-//         // Validate parsed date
-//         if (isNaN(date)) {
-//             return next(new AppError("Invalid date format for reminderDateTime", 400));
-//         }
-//
-//         // Handle uploaded files (req.files is an array from upload.array middleware)
-//         let imageUrls = [];
-//         if (req.files && req.files.length > 0) {
-//             imageUrls = req.files.map(
-//                 (file) => `${req.protocol}://${req.get('host')}/images/display-${file.filename}`
-//             );
-//         }
-//
-//         // Create the reminder in the database
-//         const reminder = await Reminder.create({
-//             title,
-//             reminderDateTime: date,
-//             notes,
-//             userID,
-//             images: imageUrls,
-//         });
-//
-//         // Schedule the reminder
-//         await scheduleReminder(reminder, date);
-//
-//         // Send response back
-//         res.status(201).json({
-//             status: "success",
-//             message: "Reminder scheduled successfully",
-//             data: reminder,
-//         });
-//     } catch (error) {
-//         next(error);
-//     }
-// });
-
+//create reminder
 exports.createReminder = catchAsync(async (req, res, next) => {
     try {
-        const { title, reminderDateTime, notes, timeZone,locationTitle,locationAddress,latitude,longitude,emoji } = req.body;
+        const {
+            title,
+            reminderDateTime,
+            notes,
+            timeZone,
+            locationTitle,
+            locationAddress,
+            latitude,
+            longitude,
+            emoji
+        } = req.body;
         const userID = req.user._id;
 
-        console.log(userID)
 
         // Parse the reminderDateTime with the provided timeZone
         const userDate = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone);
@@ -100,7 +61,7 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             );
         }
 
-        if(locationTitle && locationAddress && latitude && longitude){
+        if (locationTitle && locationAddress && latitude && longitude) {
             await Locations.create({
                 locationTitle,
                 locationAddress,
@@ -117,12 +78,13 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             userID,
             images: imageUrls,
             timeZone,
-            location: { locationTitle,locationAddress, latitude, longitude },
-            emoji
+            location: {locationTitle, locationAddress, latitude, longitude},
+            emoji,
+            isActive: true,
         });
 
         // Schedule the reminder (using UTC time for consistency)
-        await scheduleReminder(reminder, utcDate.toDate());
+        await scheduleReminder(reminder, utcDate.toDate(), true);
 
         res.status(201).json({
             status: "success",
@@ -135,65 +97,129 @@ exports.createReminder = catchAsync(async (req, res, next) => {
 });
 
 
-exports.updateReminder = catchAsync(async (req, res, next) => {
+//Snooze New Reminder
+exports.snoozeNewReminder = catchAsync(async (req, res, next) => {
+    const {
+        title,
+        reminderDateTime,
+        notes,
+        timeZone,
+        locationTitle,
+        locationAddress,
+        latitude,
+        longitude,
+        emoji,
+        snoozedTime
+    } = req.body;
+    const userID = req.user._id;
+
+    // Parse the reminderDateTime with the provided timeZone
+    const userDate = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone);
+
+    console.log(`User Date: ${userDate.format()}`);
+
+    if (!userDate.isValid()) {
+        return next(new AppError("Invalid date format for reminderDateTime", 400));
+    }
+
+    // Convert to UTC for database storage
+    const utcDate = userDate.utc();
+
+    console.log(`UTC Date for storage: ${utcDate.format()}`);
+
+    // Handle uploaded images if any
+    let imageUrls = [];
+    if (req.files && req.files.length > 0) {
+        imageUrls = req.files.map(
+            (file) => `${req.protocol}://${req.get('host')}/images/display-${file.filename}`
+        );
+    }
+
+    if (locationTitle && locationAddress && latitude && longitude) {
+        await Locations.create({
+            locationTitle,
+            locationAddress,
+            latitude,
+            longitude
+        })
+    }
+
+    const reminder = await Reminder.create({
+        title,
+        reminderDateTime: utcDate.toDate(),
+        notes,
+        userID,
+        images: imageUrls,
+        timeZone,
+        location: {locationTitle, locationAddress, latitude, longitude},
+        emoji,
+        isActive: false,
+        snoozedTime,
+        isSnoozeActive: true,
+        everSnoozed: true
+    });
+
+    // Schedule the reminder (using UTC time for consistency)
+    await scheduleReminder(reminder, utcDate.toDate());
+
+    res.status(200).json({
+        status: "success",
+        message: "Snoozed created successfully!",
+        data: reminder,
+    });
+});
+
+
+//update reminder to snooze or re snooze a reminder
+exports.reSnoozeReminder = catchAsync(async (req, res, next) => {
     try {
-        const { id } = req.params;
+        const reminderID = req.params.id;
+        const {reminderDateTime, timeZone, snoozedTime} = req.body;
+        console.log(reminderDateTime, timeZone, snoozedTime);
         const userID = req.user._id;
 
-        // Find the existing reminder
-        let reminder = await Reminder.findOne({ _id: id, userID });
+        // Validate the incoming date
+        if (!reminderDateTime || !timeZone) {
+            return next(new AppError("reminderDateTime and timeZone are required", 400));
+        }
+
+        // Parse the date with the provided time zone
+        const userDate = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone);
+
+        if (!userDate.isValid()) {
+            return next(new AppError("Invalid date format for reminderDateTime", 400));
+        }
+
+        // Convert to UTC
+        const utcDate = userDate.utc();
+
+        console.log(`Parsed User Date: ${userDate.format()}`);
+        console.log(`Converted UTC Date: ${utcDate.format()}`);
+
+        // Find and update the reminder
+        const reminder = await Reminder.findOneAndUpdate(
+            {_id: reminderID, userID},
+            {
+                snoozedTime,
+                isSnoozeActive: true,
+                isActive: false,
+                everSnoozed: true,
+                reminderDateTime: utcDate.toDate(),
+            },
+            {new: true} // Returns the updated document
+        );
 
         if (!reminder) {
-            return next(new AppError("Reminder not found", 404));
+            return next(new AppError("Reminder not found or unauthorized", 404));
         }
 
-        // Prepare an update object
-        let updateData = {};
-
-        // Conditionally update fields
-        if (req.body.title) updateData.title = req.body.title;
-        if (req.body.notes) updateData.notes = req.body.notes;
-        if (req.body.emoji) updateData.emoji = req.body.emoji;
-        if (req.body.timeZone) updateData.timeZone = req.body.timeZone;
-
-        // Handle reminderDateTime update
-        if (req.body.reminderDateTime) {
-            const userDate = moment.tz(req.body.reminderDateTime, "DD MMM YYYY, h:mm A", req.body.timeZone || reminder.timeZone);
-            if (!userDate.isValid()) {
-                return next(new AppError("Invalid date format for reminderDateTime", 400));
-            }
-            updateData.reminderDateTime = userDate.utc().toDate();
-        }
-
-        // Handle uploaded images if any
-        if (req.files && req.files.length > 0) {
-            updateData.images = req.files.map(
-                (file) => `${req.protocol}://${req.get("host")}/images/display-${file.filename}`
-            );
-        }
-
-        // // Handle location update
-        // if (req.body.locationTitle || req.body.locationAddress || req.body.latitude || req.body.longitude) {
-        //     updateData.location = {
-        //         locationTitle: req.body.locationTitle || reminder.location.locationTitle,
-        //         locationAddress: req.body.locationAddress || reminder.location.locationAddress,
-        //         latitude: req.body.latitude || reminder.location.latitude,
-        //         longitude: req.body.longitude || reminder.location.longitude
-        //     };
-        // }
-
-        // Update the reminder in the database
-        reminder = await Reminder.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
-
-        // Reschedule the reminder notification if the date was updated
-        if (updateData.reminderDateTime) {
-            await scheduleReminder(reminder, updateData.reminderDateTime);
-        }
+        // Schedule the reminder again with the new snooze time
+        await scheduleReminder(reminder, utcDate.toDate());
 
         res.status(200).json({
             status: "success",
-            message: "Reminder updated successfully",
-            data: reminder,
+            message: "Reminder snoozed successfully.",
+            data: {reminder},
         });
     } catch (error) {
         next(error);
@@ -201,24 +227,36 @@ exports.updateReminder = catchAsync(async (req, res, next) => {
 });
 
 
+const scheduleReminder = async (reminder, date, isCreate = false) => {
+    console.log("Entering scheduleReminder function...");
 
-const scheduleReminder = async (reminder, date, isUpdate = false) => {
-    console.log("enter to schedule");
     const cronTime = moment(date).format('m H D M *');
-    console.log(`${isUpdate ? 'Generated New' : 'Generated'} Cron Time for UTC:`, cronTime);
+    console.log(`Generated Cron Time for UTC:`, cronTime);
 
-    if (isUpdate) {
-        cron.getTasks().forEach(task => task.stop());
-        console.log('Canceled existing cron jobs for update.');
-    }
-
-    console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
+    console.log("Scheduling reminder for cron job...");
     cron.schedule(cronTime, async () => {
         console.log(`Cron job triggered at: ${new Date().toISOString()}`);
         try {
             await sendPushNotification(reminder);
-            await markReminderAsCompleted(reminder._id);
-            console.log('Reminder marked as completed');
+
+            // Fetch the reminder from the database
+            const reminderData = await Reminder.findOne({_id: reminder._id});
+
+            // If the reminder exists, update it
+            if (reminderData) {
+                if (isCreate) {
+                    reminderData.isComplete = true;
+                    console.log('Reminder marked as completed.');
+                }
+
+                reminderData.isActive = false;
+                reminderData.isSnoozeActive = false;
+                reminderData.executionTime = new Date().toISOString();
+                await reminderData.save();
+                console.log('Reminder updated successfully.');
+            } else {
+                console.log('Reminder not found.');
+            }
         } catch (error) {
             console.error('Error executing reminder:', error);
         }
@@ -229,7 +267,7 @@ const scheduleReminder = async (reminder, date, isUpdate = false) => {
 //update reminder
 exports.updateReminderTime = catchAsync(async (req, res, next) => {
     try {
-        const { reminderDateTime, snoozedTime, timeZone } = req.body;
+        const {reminderDateTime, snoozedTime, timeZone} = req.body;
         const reminderID = req.params.id;
 
         if (!reminderDateTime || !timeZone) {
@@ -251,7 +289,7 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
 
         reminder.reminderDateTime = utcDate.toDate();
         reminder.snoozedTime = snoozedTime;
-        reminder.isSnoozeActive=true;
+        reminder.isSnoozeActive = true;
         await reminder.save();
 
         const cronTime = date.format('m H D M *');
@@ -271,7 +309,6 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
         next(error);
     }
 });
-
 
 
 //schedule
@@ -301,11 +338,11 @@ exports.updateReminderTime = catchAsync(async (req, res, next) => {
 
 // Function to send push notification
 const sendPushNotification = async (reminder) => {
-    const { userID, title, notes, images } = reminder;
+    const {userID, title, notes, images} = reminder;
 
     try {
         // Fetch FCM tokens and user data
-        const fcmDataArray = await FCM.find({ userID: userID });
+        const fcmDataArray = await FCM.find({userID: userID});
         console.log("fcmData", fcmDataArray);
         const user = await User.findById(userID);
 
@@ -334,7 +371,7 @@ const sendPushNotification = async (reminder) => {
                 if (error.code === 'messaging/registration-token-not-registered') {
                     console.log('FCM token expired or invalid. Removing from database.');
                     // Optionally, you can remove invalid token from the database or mark it as expired
-                    await FCM.deleteOne({ fcmToken: fcmData.fcmToken });
+                    await FCM.deleteOne({fcmToken: fcmData.fcmToken});
                 }
                 console.error('Error sending notification:', error);
             }
@@ -344,18 +381,19 @@ const sendPushNotification = async (reminder) => {
     }
 };
 
-// Function to mark reminder as completed
-const markReminderAsCompleted = async (reminderID) => {
-    try {
-        await Reminder.findByIdAndUpdate(reminderID, {
-            isComplete: true, executionTime: new Date().toISOString(),
-            isSnoozeActive:false
-        });
-        console.log(`Reminder ${reminderID} marked as completed.`);
-    } catch (error) {
-        console.error('Error marking reminder as completed:', error);
-    }
-};
+// // Function to mark reminder as completed
+// const markReminderAsCompleted = async (reminderID) => {
+//     try {
+//         await Reminder.findByIdAndUpdate(reminderID, {
+//             isComplete: true, executionTime: new Date().toISOString(),
+//             isSnoozeActive:false,
+//             isActive:false
+//         });
+//         console.log(`Reminder ${reminderID} marked as completed.`);
+//     } catch (error) {
+//         console.error('Error marking reminder as completed:', error);
+//     }
+// };
 
 //delete reminders
 exports.deleteReminder = catchAsync(async (req, res, next) => {
@@ -389,7 +427,7 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
             return next(new AppError("Reminder not found", 200));
         }
 
-        const { reminderDateTime, timeZone } = reminder;
+        const {reminderDateTime, timeZone} = reminder;
 
         if (!reminderDateTime || !timeZone) {
             return next(new AppError("Reminder date or time zone is missing", 400));
@@ -399,7 +437,7 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
 
         res.status(200).json({
             status: "success",
-            data: { ...reminder.toObject(), reminderDateTime: adjustedDate }
+            data: {...reminder.toObject(), reminderDateTime: adjustedDate}
         });
     } catch (error) {
         next(error);
@@ -411,7 +449,7 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
 exports.getAllReminders = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
-        const reminders = await Reminder.find({ userID }).sort({ createdAt: -1 });
+        const reminders = await Reminder.find({userID}).sort({createdAt: -1});
 
         const adjustedReminders = reminders.map(reminder => {
             const reminderDateTime = reminder.reminderDateTime;
@@ -453,28 +491,62 @@ exports.getAllReminders = catchAsync(async (req, res, next) => {
 
 //active reminders
 exports.activeReminders = catchAsync(async (req, res, next) => {
+    let userID = req.user._id;
+
+    // Fetch active reminders
+    let activeReminders = await Reminder.find({
+        userID,
+        isComplete: false,
+        isActive: true,
+        isSnoozeActive: false,
+        everSnoozed: false
+    });
+
+    if (!activeReminders.length) {
+        return next(new AppError("No active reminders found", 200));
+    }
+
+    // Adjust time zone if data is valid
+    const adjustedReminders = activeReminders
+        .filter(reminder => reminder.reminderDateTime && reminder.timeZone)
+        .map(reminder => ({
+            ...reminder.toObject(),
+            reminderDateTime: moment(reminder.reminderDateTime)
+                .tz(reminder.timeZone, true)
+                .format()
+        }));
+
+    res.status(200).json({
+        status: "success",
+        data: adjustedReminders
+    });
+});
+
+
+// Completed reminders
+exports.completedReminder = catchAsync(async (req, res, next) => {
     try {
         let userID = req.user._id;
-        let activeReminders = await Reminder.find({ userID: userID, isComplete: false });
 
-        if (!activeReminders || activeReminders.length === 0) {
-            return next(new AppError("No active reminders found", 200));
+        // Fetch completed reminders
+        let completedReminders = await Reminder.find({
+            userID,
+            isComplete: true
+        });
+
+        if (!completedReminders.length) {
+            return next(new AppError("No completed reminders found", 200));
         }
 
-        const adjustedReminders = activeReminders.map(reminder => {
-            const { reminderDateTime, timeZone } = reminder;
-
-            if (!reminderDateTime || !timeZone) {
-                return next(new AppError("Reminder date or time zone is missing", 400));
-            }
-
-            const adjustedDate = moment(reminderDateTime).tz(timeZone, true).format();
-
-            return {
+        // Adjust time zone if data is valid
+        const adjustedReminders = completedReminders
+            .filter(reminder => reminder.reminderDateTime && reminder.timeZone)
+            .map(reminder => ({
                 ...reminder.toObject(),
-                reminderDateTime: adjustedDate
-            };
-        });
+                reminderDateTime: moment(reminder.reminderDateTime)
+                    .tz(reminder.timeZone, true)
+                    .format()
+            }));
 
         res.status(200).json({
             status: "success",
@@ -486,26 +558,42 @@ exports.activeReminders = catchAsync(async (req, res, next) => {
 });
 
 
-//completed reminders
-exports.completedReminder = catchAsync(async (req, res, next) => {
+//ever snoozed but not complete
+exports.everSnoozedButNotCompleted = catchAsync(async (req, res, next) => {
     try {
         let userID = req.user._id;
-        let completedReminders = await Reminder.find({ userID: userID, isComplete: true });
 
-        if (!completedReminders || completedReminders.length === 0) {
-            return next(new AppError("Reminder not found", 200));
-        }
-
-        // Adjust the reminderDateTime for each reminder
-        const adjustedReminders = completedReminders.map(reminder => {
-            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
-            return {
-                ...reminder.toObject(),
-                reminderDateTime: adjustedDate
-            };
+        // Fetch reminders that were snoozed but are not completed
+        let everSnoozedReminders = await Reminder.find({
+            userID,
+            everSnoozed: true,
+            isSnoozeActive: false,
+            isComplete: false,
         });
 
-        res.status(200).json({ status: "success", data: adjustedReminders });
+        // Return an empty array instead of throwing an error if no reminders found
+        if (!everSnoozedReminders.length) {
+            return res.status(200).json({
+                status: "success",
+                message: "No snoozed reminders found.",
+                data: []
+            });
+        }
+
+        // Adjust time zone if data is valid
+        const adjustedReminders = everSnoozedReminders
+            .filter(reminder => reminder.reminderDateTime && reminder.timeZone)
+            .map(reminder => ({
+                ...reminder.toObject(),
+                reminderDateTime: moment(reminder.reminderDateTime)
+                    .tz(reminder.timeZone, true)
+                    .format()
+            }));
+
+        res.status(200).json({
+            status: "success",
+            data: adjustedReminders
+        });
     } catch (error) {
         next(error);
     }
@@ -517,13 +605,12 @@ exports.snoozeReminder = catchAsync(async (req, res, next) => {
     try {
         const reminderID = req.params.id;
         const userID = req.user._id;
-        const reminder = await Reminder.findOne({ _id: reminderID, userID: userID });
+        const reminder = await Reminder.findOne({_id: reminderID, userID: userID});
 
         if (!reminder) {
             return next(new AppError("Reminder not found or you do not have access", 200));
         }
 
-        // Adjust the reminderDateTime for the reminder being snoozed
         // Update the reminder date and snooze status
         reminder.reminderDateTime = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
         reminder.isSnoozeActive = true;
@@ -544,28 +631,69 @@ exports.snoozeReminder = catchAsync(async (req, res, next) => {
 exports.snoozedList = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
-        const data = await Reminder.find({ userID: userID, isSnoozeActive: true });
 
-        if (!data || data.length === 0) {
-            return next(new AppError("Snoozed Reminder not found", 200));
-        }
-
-        // Adjust the reminderDateTime for each snoozed reminder
-        const adjustedReminders = data.map(reminder => {
-            const adjustedDate = moment(reminder.reminderDateTime).subtract(6, 'hours').toDate();
-            return {
-                ...reminder.toObject(),
-                reminderDateTime: adjustedDate
-            };
+        // Fetch snoozed reminders
+        const snoozedReminders = await Reminder.find({
+            userID,
+            isSnoozeActive: true,
+            isComplete: false,
+            isActive: false,
         });
 
+        // Return an empty array instead of throwing an error if no reminders are found
+        if (!snoozedReminders.length) {
+            return res.status(200).json({
+                status: "success",
+                message: "No snoozed reminders found.",
+                data: []
+            });
+        }
+
+        // Adjust time zone if data is valid
+        const adjustedReminders = snoozedReminders
+            .filter(reminder => reminder.reminderDateTime && reminder.timeZone)
+            .map(reminder => ({
+                ...reminder.toObject(),
+                reminderDateTime: moment(reminder.reminderDateTime)
+                    .tz(reminder.timeZone, true)
+                    .format()
+            }));
+
         res.status(200).json({
-            status: 'success', results: adjustedReminders.length, data: adjustedReminders,
+            status: "success",
+            data: adjustedReminders
         });
     } catch (error) {
         next(error);
     }
 });
+
+
+exports.completeSnoozedReminder = catchAsync(async (req, res, next) => {
+    const { id } = req.params;
+
+    // Find the reminder by ID
+    const reminder = await Reminder.findById(id);
+
+    if (!reminder) {
+        return next(new AppError("Reminder not found", 200));
+    }
+
+    // Update reminder status
+    reminder.isComplete = true;
+    reminder.isSnoozeActive = false;
+    reminder.isActive = false;
+
+    await reminder.save();
+
+    // Send success response with updated reminder
+    res.status(200).json({
+        status: "success",
+        message: "Snoozed reminder marked as completed successfully",
+        data: reminder
+    });
+});
+
 
 
 //find locations
@@ -582,7 +710,7 @@ exports.locationList = catchAsync(async (req, res, next) => {
 //create locations
 exports.createLocation = catchAsync(async (req, res, next) => {
 
-    const {locationTitle,locationAddress,latitude,longitude} = req.body;
+    const {locationTitle, locationAddress, latitude, longitude} = req.body;
 
     await Locations.create({
         locationTitle,
@@ -685,3 +813,145 @@ exports.createLocation = catchAsync(async (req, res, next) => {
 //         next(error);
 //     }
 // });
+
+
+// exports.updateReminder = catchAsync(async (req, res, next) => {
+//     try {
+//         const { id } = req.params;
+//         const userID = req.user._id;
+//
+//         // Find the existing reminder
+//         let reminder = await Reminder.findOne({ _id: id, userID });
+//
+//         if (!reminder) {
+//             return next(new AppError("Reminder not found", 404));
+//         }
+//
+//         // Prepare an update object
+//         let updateData = {};
+//
+//         // Conditionally update fields
+//         if (req.body.title) updateData.title = req.body.title;
+//         if (req.body.notes) updateData.notes = req.body.notes;
+//         if (req.body.emoji) updateData.emoji = req.body.emoji;
+//         if (req.body.timeZone) updateData.timeZone = req.body.timeZone;
+//
+//         // Handle reminderDateTime update
+//         if (req.body.reminderDateTime) {
+//             const userDate = moment.tz(req.body.reminderDateTime, "DD MMM YYYY, h:mm A", req.body.timeZone || reminder.timeZone);
+//             if (!userDate.isValid()) {
+//                 return next(new AppError("Invalid date format for reminderDateTime", 400));
+//             }
+//             updateData.reminderDateTime = userDate.utc().toDate();
+//         }
+//
+//         // Handle uploaded images if any
+//         if (req.files && req.files.length > 0) {
+//             updateData.images = req.files.map(
+//                 (file) => `${req.protocol}://${req.get("host")}/images/display-${file.filename}`
+//             );
+//         }
+//
+//         // // Handle location update
+//         // if (req.body.locationTitle || req.body.locationAddress || req.body.latitude || req.body.longitude) {
+//         //     updateData.location = {
+//         //         locationTitle: req.body.locationTitle || reminder.location.locationTitle,
+//         //         locationAddress: req.body.locationAddress || reminder.location.locationAddress,
+//         //         latitude: req.body.latitude || reminder.location.latitude,
+//         //         longitude: req.body.longitude || reminder.location.longitude
+//         //     };
+//         // }
+//
+//         // Update the reminder in the database
+//         reminder = await Reminder.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
+//
+//         // Reschedule the reminder notification if the date was updated
+//         if (updateData.reminderDateTime) {
+//             await scheduleReminder(reminder, updateData.reminderDateTime);
+//         }
+//
+//         res.status(200).json({
+//             status: "success",
+//             message: "Reminder updated successfully",
+//             data: reminder,
+//         });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
+
+
+// const scheduleReminder = async (reminder, date,reminderId, isUpdate = false) => {
+//     console.log("enter to schedule");
+//     const cronTime = moment(date).format('m H D M *');
+//     console.log(`${isUpdate ? 'Generated New' : 'Generated'} Cron Time for UTC:`, cronTime);
+//
+//     if (isUpdate) {
+//         cron.getTasks().forEach(task => task.stop());
+//         console.log('Canceled existing cron jobs for update.');
+//     }
+//
+//     console.log(`${isUpdate ? 'Scheduling updated' : 'Scheduling'} reminder for cron job...`);
+//     cron.schedule(cronTime, async () => {
+//         console.log(`Cron job triggered at: ${new Date().toISOString()}`);
+//         try {
+//             await sendPushNotification(reminder);
+//             await markReminderAsCompleted(reminder._id);
+//             console.log('Reminder marked as completed');
+//         } catch (error) {
+//             console.error('Error executing reminder:', error);
+//         }
+//     });
+// };
+
+
+// exports.createReminder = catchAsync(async (req, res, next) => {
+//     try {
+//         const { title, reminderDateTime, notes, timeZone } = req.body;
+//         const userID = req.user._id;
+//
+//         // Validate required fields
+//         if (!title || !reminderDateTime || !userID || !timeZone) {
+//             return next(new AppError("Title, reminder date, user ID, and time zone are required", 400));
+//         }
+//
+//         // Convert reminderDateTime to the user's time zone
+//         const date = moment.tz(reminderDateTime, "DD MMM YYYY, h:mm A", timeZone).toDate();
+//         console.log('Parsed Date in User Time Zone:', date);
+//
+//         // Validate parsed date
+//         if (isNaN(date)) {
+//             return next(new AppError("Invalid date format for reminderDateTime", 400));
+//         }
+//
+//         // Handle uploaded files (req.files is an array from upload.array middleware)
+//         let imageUrls = [];
+//         if (req.files && req.files.length > 0) {
+//             imageUrls = req.files.map(
+//                 (file) => `${req.protocol}://${req.get('host')}/images/display-${file.filename}`
+//             );
+//         }
+//
+//         // Create the reminder in the database
+//         const reminder = await Reminder.create({
+//             title,
+//             reminderDateTime: date,
+//             notes,
+//             userID,
+//             images: imageUrls,
+//         });
+//
+//         // Schedule the reminder
+//         await scheduleReminder(reminder, date);
+//
+//         // Send response back
+//         res.status(201).json({
+//             status: "success",
+//             message: "Reminder scheduled successfully",
+//             data: reminder,
+//         });
+//     } catch (error) {
+//         next(error);
+//     }
+// });
+

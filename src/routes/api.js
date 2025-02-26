@@ -2,8 +2,9 @@ const express = require('express');
 const {registerUser, loginUser, logout, updatePassword, updateProfile, forgotPassword, resetPassword, verifyOtp} = require("../controllers/userController");
 const verifyToken = require("../middlewares/verifyToken");
 const {createReminder, deleteReminder, getSingleReminder,
-    getAllReminders, activeReminders, completedReminder, snoozeReminder, snoozedList,
-    updateReminderTime, locationList, createLocation, updateReminder
+    getAllReminders, activeReminders, completedReminder, snoozedList,
+    locationList, createLocation, snoozeNewReminder, reSnoozeReminder,
+    everSnoozedButNotCompleted, completeSnoozedReminder
 } = require("../controllers/reminderController");
 const {createHelp} = require("../controllers/helpController");
 const {resizeImages, upload} = require("../utils/multer");
@@ -23,22 +24,26 @@ router.post('/reset-password',resetPassword)
 
 //reminders
 router.post('/create-reminder',verifyToken, upload.array('images'),resizeImages, createReminder );
-router.put("/update-reminder/:id",verifyToken, updateReminder);
-router.delete('/remove-reminder/:id',verifyToken, deleteReminder);
-router.get('/reminder/:id',verifyToken, getSingleReminder);
-router.get('/reminders',verifyToken, getAllReminders);
-router.get('/active-reminders',verifyToken, activeReminders);
-router.get('/complete-reminders',verifyToken, completedReminder);
 router.get("/locations", verifyToken, locationList);
 router.post("/create-location",verifyToken, createLocation);
+router.get('/reminders',verifyToken, getAllReminders);
+router.get('/reminder/:id',verifyToken, getSingleReminder);
+router.get('/active-reminders',verifyToken, activeReminders);
+router.get('/complete-reminders',verifyToken, completedReminder);
+router.delete('/remove-reminder/:id',verifyToken, deleteReminder);
+
+router.put('/re-snooze/:id',verifyToken, reSnoozeReminder);
+
+//snoozed reminder
+router.post('/create-snooze',verifyToken, upload.array('images'),resizeImages, snoozeNewReminder );
+router.get('/snooze-list',verifyToken, snoozedList);
+router.get('/ever-snoozed',verifyToken, everSnoozedButNotCompleted);
+router.put('/complete-snooze/:id',verifyToken,completeSnoozedReminder);
 
 //manage fcm
 router.post('/update-fcm-token', verifyToken, updateOrCreateFcmToken);
 
-//snoozed reminder
-router.put('/create-snooze/:id',verifyToken, snoozeReminder);
-router.get('/snooze-list',verifyToken, snoozedList);
-router.put('/set-snooze-time/:id',verifyToken,updateReminderTime)
+
 
 //help & support
 router.post('/create-help',createHelp);
