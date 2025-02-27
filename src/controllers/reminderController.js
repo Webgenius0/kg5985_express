@@ -449,7 +449,7 @@ exports.getSingleReminder = catchAsync(async (req, res, next) => {
 exports.getAllReminders = catchAsync(async (req, res, next) => {
     try {
         const userID = req.user._id;
-        const reminders = await Reminder.find({userID}).sort({createdAt: -1});
+        const reminders = await Reminder.find({userID}).sort({updatedAt: -1});
 
         const adjustedReminders = reminders.map(reminder => {
             const reminderDateTime = reminder.reminderDateTime;
@@ -500,7 +500,7 @@ exports.activeReminders = catchAsync(async (req, res, next) => {
         isActive: true,
         isSnoozeActive: false,
         everSnoozed: false
-    });
+    }).sort({updatedAt: -1});
 
     if (!activeReminders.length) {
         return next(new AppError("No active reminders found", 200));
@@ -532,7 +532,7 @@ exports.completedReminder = catchAsync(async (req, res, next) => {
         let completedReminders = await Reminder.find({
             userID,
             isComplete: true
-        });
+        }).sort({updatedAt: -1});
 
         if (!completedReminders.length) {
             return next(new AppError("No completed reminders found", 200));
@@ -569,7 +569,7 @@ exports.everSnoozedButNotCompleted = catchAsync(async (req, res, next) => {
             everSnoozed: true,
             isSnoozeActive: false,
             isComplete: false,
-        });
+        }).sort({updatedAt: -1});
 
         // Return an empty array instead of throwing an error if no reminders found
         if (!everSnoozedReminders.length) {
@@ -638,7 +638,7 @@ exports.snoozedList = catchAsync(async (req, res, next) => {
             isSnoozeActive: true,
             isComplete: false,
             isActive: false,
-        });
+        }).sort({updatedAt: -1});
 
         // Return an empty array instead of throwing an error if no reminders are found
         if (!snoozedReminders.length) {
@@ -673,7 +673,7 @@ exports.completeSnoozedReminder = catchAsync(async (req, res, next) => {
     const { id } = req.params;
 
     // Find the reminder by ID
-    const reminder = await Reminder.findById(id);
+    const reminder = await Reminder.findById(id).sort({updatedAt: -1});
 
     if (!reminder) {
         return next(new AppError("Reminder not found", 200));
