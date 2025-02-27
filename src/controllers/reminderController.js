@@ -174,7 +174,7 @@ exports.snoozeNewReminder = catchAsync(async (req, res, next) => {
 exports.reSnoozeReminder = catchAsync(async (req, res, next) => {
     try {
         const reminderID = req.params.id;
-        const {reminderDateTime, timeZone, snoozedTime} = req.body;
+        const { reminderDateTime, timeZone, snoozedTime } = req.body;
         console.log(reminderDateTime, timeZone, snoozedTime);
         const userID = req.user._id;
 
@@ -198,7 +198,7 @@ exports.reSnoozeReminder = catchAsync(async (req, res, next) => {
 
         // Find and update the reminder
         const reminder = await Reminder.findOneAndUpdate(
-            {_id: reminderID, userID},
+            { _id: reminderID, userID },
             {
                 snoozedTime,
                 isSnoozeActive: true,
@@ -206,20 +206,20 @@ exports.reSnoozeReminder = catchAsync(async (req, res, next) => {
                 everSnoozed: true,
                 reminderDateTime: utcDate.toDate(),
             },
-            {new: true} // Returns the updated document
+            { new: true } // Returns the updated document
         );
 
         if (!reminder) {
             return next(new AppError("Reminder not found or unauthorized", 404));
         }
 
-        // Schedule the reminder again with the new snooze time
-        await scheduleReminder(reminder, utcDate.toDate());
+        // Re-schedule the reminder with the new snooze time
+        await scheduleReminder(reminder, utcDate.toDate(), false);
 
         res.status(200).json({
             status: "success",
             message: "Reminder snoozed successfully.",
-            data: {reminder},
+            data: { reminder },
         });
     } catch (error) {
         next(error);
@@ -227,40 +227,59 @@ exports.reSnoozeReminder = catchAsync(async (req, res, next) => {
 });
 
 
+
+const scheduledJobs = new Map(); // Track active jobs
+
 const scheduleReminder = async (reminder, date, isCreate = false) => {
     console.log("Entering scheduleReminder function...");
 
-    const cronTime = moment(date).format('m H D M *');
+    // Stop and remove existing scheduled job (if any)
+    if (scheduledJobs.has(reminder._id.toString())) {
+        console.log(`Stopping previous cron job for reminder: ${reminder._id}`);
+        scheduledJobs.get(reminder._id.toString()).stop();
+        scheduledJobs.delete(reminder._id.toString());
+    }
+
+    // Convert date to Cron format
+    const cronTime = moment(date).format("m H D M *");
     console.log(`Generated Cron Time for UTC:`, cronTime);
 
-    console.log("Scheduling reminder for cron job...");
-    cron.schedule(cronTime, async () => {
+    // Schedule the new reminder
+    const job = cron.schedule(cronTime, async () => {
         console.log(`Cron job triggered at: ${new Date().toISOString()}`);
+
         try {
             await sendPushNotification(reminder);
 
             // Fetch the reminder from the database
-            const reminderData = await Reminder.findOne({_id: reminder._id});
+            const reminderData = await Reminder.findOne({ _id: reminder._id });
 
             // If the reminder exists, update it
             if (reminderData) {
                 if (isCreate) {
                     reminderData.isComplete = true;
-                    console.log('Reminder marked as completed.');
+                    console.log("Reminder marked as completed.");
                 }
 
                 reminderData.isActive = false;
                 reminderData.isSnoozeActive = false;
-                reminderData.executionTime = new Date().toISOString();
+                reminderData.executionTime = new Date();
                 await reminderData.save();
-                console.log('Reminder updated successfully.');
+                console.log("Reminder updated successfully.");
             } else {
-                console.log('Reminder not found.');
+                console.log("Reminder not found.");
             }
+
+            // Remove job after execution
+            job.stop();
+            scheduledJobs.delete(reminder._id.toString());
         } catch (error) {
-            console.error('Error executing reminder:', error);
+            console.error("Error executing reminder:", error);
         }
     });
+
+    // Store job in Map
+    scheduledJobs.set(reminder._id.toString(), job);
 };
 
 
