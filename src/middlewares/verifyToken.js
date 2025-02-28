@@ -34,7 +34,7 @@ const verifyToken = catchAsync(async (req, res, next) => {
 
             const reminderCount = await Reminder.countDocuments({ userID: currentGuest._id });
             if (reminderCount >= 5) {
-                return res.status(403).json({
+                return res.status(200).json({
                     status: "error",
                     message: "Guest users can only create up to 5 reminders. Please sign up for more.",
                 });
