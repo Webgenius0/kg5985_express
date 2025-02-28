@@ -36,7 +36,9 @@ exports.createReminder = catchAsync(async (req, res, next) => {
             longitude,
             emoji
         } = req.body;
+
         const userID = req.user._id;
+        console.log(req.user);
 
 
         // Parse the reminderDateTime with the provided timeZone

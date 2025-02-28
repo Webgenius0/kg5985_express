@@ -9,17 +9,19 @@ const {createReminder, deleteReminder, getSingleReminder,
 const {createHelp} = require("../controllers/helpController");
 const {resizeImages, upload} = require("../utils/multer");
 const {updateOrCreateFcmToken} = require("../controllers/fcmController");
+const {guestLogin} = require("../controllers/guestController");
 const router = express.Router();
 
 //user routes
 router.post('/register', registerUser);
 router.post('/login', loginUser);
+router.post('/guest-login', guestLogin);
 router.post('/logout', verifyToken, logout);
 router.post('/update-password', verifyToken, updatePassword);
 router.put('/update-profile', verifyToken, updateProfile);
 router.post('/forgot-password', forgotPassword);
 router.post("/verify-otp", verifyOtp);
-router.post('/reset-password',resetPassword)
+router.post('/reset-password',resetPassword);
 
 
 //reminders
