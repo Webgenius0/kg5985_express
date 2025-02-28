@@ -2,39 +2,29 @@ const jwt = require('jsonwebtoken');
 const AppError = require('../utils/AppError');
 const catchAsync = require('../utils/catchAsync');
 const User = require("../models/userModel");
+const Guest = require("../models/guestModel");
 
-// Verify Middleware
 const verifyToken = catchAsync(async (req, res, next) => {
     const authHeader = req.headers.authorization;
-
-    // Check if the header exists and starts with "Bearer"
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ message: "Unauthorized. No token provided." });
+    if (!authHeader?.startsWith("Bearer ")) {
+        return next(new AppError("Unauthorized. No token provided.", 401));
     }
 
-    // Extract the token from the header
     const token = authHeader.split(" ")[1];
 
-    let decoded;
-    // Verify the token
     try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch (err) {
-        if (err.name === 'TokenExpiredError') {
-            return res.status(401).json({ message: 'Token expired, please log in again.' });
-        }
-        return res.status(401).json({ message: 'Invalid or expired token.' });
-    }
-    
-    // Check if the user still exists in the database
-    const currentUser = await User.findById(decoded.id);
-    if (!currentUser) {
-        return next(new AppError('The user belonging to this token no longer exists.', 401));
-    }
+        const { id } = jwt.verify(token, process.env.JWT_SECRET);
+        req.user = await User.findById(id) || await Guest.findById(id);
 
-    // Grant access to the user
-    req.user = currentUser;
-    next();
+        if (!req.user) {
+            return next(new AppError("User not found or no longer exists.", 401));
+        }
+
+        next();
+    } catch (err) {
+        const message = err.name === "TokenExpiredError" ? "Token expired, please log in again." : "Invalid or expired token.";
+        return next(new AppError(message, 401));
+    }
 });
 
 module.exports = verifyToken;

@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const bcrypt = require("bcrypt");
 
 const UserSchema = new mongoose.Schema(
     {
@@ -30,15 +29,6 @@ const UserSchema = new mongoose.Schema(
         versionKey: false,
     }
 );
-
-// Hash password before saving
-UserSchema.pre("save", async function (next) {
-    if (!this.isModified("password")) return next();
-
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-});
 
 // Hide sensitive data like password when returning user data
 UserSchema.methods.toJSON = function () {

@@ -54,6 +54,8 @@ const ReminderSchema = new mongoose.Schema(
         },
         isSnoozeActive: {type: Boolean, default: false},
         snoozedTime: {type: String, default: null},
+        isActive: {type: Boolean, default: false},
+        everSnoozed: {type: Boolean, default: false},
     },
     {
         timestamps: true,

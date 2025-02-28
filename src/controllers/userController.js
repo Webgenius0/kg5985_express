@@ -5,48 +5,36 @@ const catchAsync = require('../utils/catchAsync');
 const bcrypt = require("bcrypt");
 const OTP = require("../models/otpModel");
 const sendOtpEmail = require("../utils/sendOtpEmail");
-const crypto = require('crypto');
+
 
 
 //user registration
 exports.registerUser = catchAsync(async (req, res, next) => {
-    try {
-        let {firstName, lastName, email, password, role, avatar} = req.body;
 
-        // Validate required fields
-        if (!firstName || !lastName || !email || !password) {
-            return next(new AppError("All fields are required", 400));
-        }
+    let {firstName, lastName, email, password, role, avatar} = req.body;
 
-        // Check if email already exists
-        const existingUser = await User.findOne({email});
-        if (existingUser) {
-            return next(new AppError("This email is already registered. Please log in.", 400));
-        }
-
-        password = await bcrypt.hash(password, 12);
-        // Create a new user
-        await User.create({
-            firstName,
-            lastName,
-            email,
-            password,
-            role,
-            avatar
-        });
-
-        // Send success response without sensitive data
-        res.status(201).json({
-            status: "success",
-            message: "User registered successfully"
-        });
-    } catch (error) {
-        if (error.name === "ValidationError") {
-            const messages = Object.values(error.errors).map((err) => err.message);
-            return next(new AppError(messages.join(", "), 400));
-        }
-        next(error);
+    if (!firstName || !lastName || !email || !password) {
+        return next(new AppError("All fields are required", 400));
     }
+
+    const existingUser = await User.findOne({email});
+    if (existingUser) {
+        return next(new AppError("This email is already registered. Please log in.", 400));
+    }
+
+    await User.create({
+        firstName,
+        lastName,
+        email,
+        password,
+        role,
+        avatar
+    });
+
+    res.status(201).json({
+        status: "success",
+        message: "User registered successfully"
+    });
 });
 
 
@@ -64,12 +52,9 @@ exports.loginUser = catchAsync(async (req, res, next) => {
             return next(new AppError("Invalid email or password", 401));
         }
 
-        // Validate the current password
-        const isPasswordCorrect = await bcrypt.compare(password, user.password);
 
-        console.log(isPasswordCorrect);
 
-        if (!isPasswordCorrect) {
+        if (password !== user.password) {
             return next(new AppError("Incorrect current password", 401));
         }
 
@@ -116,9 +101,7 @@ exports.updatePassword = catchAsync(async (req, res, next) => {
             return next(new AppError("User not found", 404));
         }
 
-        // Validate the current password
-        const isPasswordCorrect = await bcrypt.compare(currentPassword, user.password);
-        if (!isPasswordCorrect) {
+        if (currentPassword !== user.password) {
             return next(new AppError("Incorrect current password", 401));
         }
 
@@ -165,26 +148,25 @@ exports.updateProfile = catchAsync(async (req, res, next) => {
 });
 
 
-
 //Forgot password controller
 
 exports.forgotPassword = catchAsync(async (req, res, next) => {
-    const { email } = req.body;
+    const {email} = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({email});
     if (!user) {
-        return res.status(400).json({ message: "User not found" });
+        return next(new AppError("User not found", 401));
     }
 
-    const otp = crypto.randomBytes(3).toString("hex");
+    const otp =  Math.round(Math.floor(100000+Math.random()*900000));
 
-    const existingOtp = await OTP.findOne({ email, isVerified: false });
+    const existingOtp = await OTP.findOne({email, isVerified: false});
 
     if (existingOtp) {
         existingOtp.otp = otp;
         await existingOtp.save();
     } else {
-        await OTP.create({ email, otp });
+        await OTP.create({email, otp});
     }
 
     const options = {
@@ -265,36 +247,56 @@ exports.forgotPassword = catchAsync(async (req, res, next) => {
 
     await sendOtpEmail(options, next);
 
-    res.status(200).json({ message: "OTP sent to your email" });
+    res.status(200).json({message: "OTP sent to your email"});
 });
 
 
 
 // Controller to verify OTP and reset the password
-exports.resetPassword = async (req, res) => {
-    try {
-        const {otp, newPassword, email} = req.body;
+exports.verifyOtp = catchAsync(async (req, res,next) => {
+    const { otp, email } = req.body;
 
-        // Check if the OTP is valid and matches the email
-        const otpRecord = await OTP.findOne({otp, email});
-        if (!otpRecord) {
-            return res.status(400).json({message: 'Invalid OTP'});
-        }
-
-        // Find user by email
-        const user = await User.findOne({email});
-        if (!user) {
-            return res.status(400).json({message: 'User not found'});
-        }
-
-        user.password = newPassword;
-        await user.save();
-
-        // Delete OTP record after successful password reset
-        await OTP.deleteOne({_id: otpRecord._id});
-        res.status(200).json({message: 'Password reset successful'});
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({message: 'Server error'});
+    if (!otp || !email) {
+        return next(new AppError("OTP and email are required", 400));
     }
-};
+
+    // Check if the OTP is valid and matches the email
+    const otpRecord = await OTP.findOne({ otp, email });
+    if (!otpRecord) {
+        return next(new AppError("OTP not found", 400));
+    }
+
+    if (otpRecord.isVerified) {
+        return next(new AppError("OTP already verified", 200));
+    }
+
+    otpRecord.isVerified = true;
+    await otpRecord.save();
+
+    res.status(200).json({ message: 'OTP verification successful' });
+});
+
+
+
+// Controller to verify OTP and reset the password
+exports.resetPassword = catchAsync(async (req, res,next) => {
+    const {otp, newPassword, email} = req.body;
+
+    // Check if the OTP is valid and matches the email
+    const otpRecord = await OTP.findOne({otp, email});
+    if (otpRecord.isVerified === false) {
+        return next(new AppError('Please complete your OTP verification',400));
+    }
+    // Find user by email
+    const user = await User.findOne({email});
+    if (!user) {
+        return next(new AppError('User not found', 401));
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    // Delete OTP record after successful password reset
+    await OTP.deleteOne({_id: otpRecord._id});
+    res.status(200).json({message: 'Password reset successful'});
+})

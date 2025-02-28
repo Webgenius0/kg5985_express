@@ -6,8 +6,8 @@ const emailUtility = async (options,next) => {
        const transporter = nodemailer.createTransport({
            service: 'gmail',
            auth: {
-               user: process.env.EMAIL_USER,
-               pass: process.env.EMAIL_PASS,
+               user: "abdussjscript@gmail.com",
+               pass: "rxfkwcfbudkkpgnl",
            },
        });
 
